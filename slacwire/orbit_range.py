@@ -28,7 +28,7 @@ class SuggestedRange:
 def suggest_scan_range(
     wire,
     beampath: str,
-    half_window_um: int = 5000,
+    half_window_um: int = 2000,
     bpm_name: str | None = None,
     physics_model: str = "BMAD",
 ) -> SuggestedRange:
@@ -113,8 +113,10 @@ def suggest_scan_range(
 
     x_range = _compute_range(x_center_um, half_window_um)
     y_range = _compute_range(y_center_um, half_window_um)
+
+    u_ref_um = sum(wire.u_range) / 2.0
     u_range = _compute_u_range(
-        x_center_um, y_center_um, half_window_um, wire.install_angle
+        x_deviation_um, y_deviation_um, half_window_um, wire.install_angle, u_ref_um
     )
 
     return SuggestedRange(
@@ -172,12 +174,14 @@ def _compute_range(center_um: float, half_window_um: int) -> tuple[int, int]:
 
 
 def _compute_u_range(
-    x_center_um: float,
-    y_center_um: float,
+    x_deviation_um: float,
+    y_deviation_um: float,
     half_window_um: int,
     install_angle_deg: float | None,
+    u_ref_um: float = 0.0,
 ) -> tuple[int, int]:
     angle_deg = install_angle_deg if install_angle_deg else 45.0
     angle_rad = math.radians(angle_deg)
-    u_center_um = x_center_um * math.cos(angle_rad) + y_center_um * math.sin(angle_rad)
+    u_deviation = x_deviation_um * math.cos(angle_rad) + y_deviation_um * math.sin(angle_rad)
+    u_center_um = u_ref_um + u_deviation
     return _compute_range(u_center_um, half_window_um)
