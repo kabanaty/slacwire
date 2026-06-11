@@ -51,8 +51,8 @@ def suggest_scan_range(
     -------
     SuggestedRange
     """
-    chosen_bpm = _resolve_bpm_name(wire, bpm_name)
-    if chosen_bpm is None:
+    bpm_names = _resolve_bpm_names(wire, bpm_name)
+    if not bpm_names:
         return SuggestedRange(
             x_center=None,
             y_center=None,
@@ -66,40 +66,40 @@ def suggest_scan_range(
             message="No upstream BPM found in wire metadata.",
         )
 
-    bpm_x_mm, bpm_y_mm = _read_bpm_position(wire.area, chosen_bpm)
-    if bpm_x_mm is None or bpm_y_mm is None:
+    bpm_positions = _read_multiple_bpm_positions(wire.area, bpm_names)
+    if not bpm_positions:
         return SuggestedRange(
             x_center=None,
             y_center=None,
             x_range=None,
             y_range=None,
             u_range=None,
-            bpm_name=chosen_bpm,
-            bpm_x_mm=bpm_x_mm,
-            bpm_y_mm=bpm_y_mm,
+            bpm_name=bpm_names[0],
+            bpm_x_mm=None,
+            bpm_y_mm=None,
             status="bpm_offline",
-            message=f"Could not read position from {chosen_bpm}.",
+            message="Could not read position from any upstream BPM.",
         )
 
     try:
-        rmat = _get_rmat(chosen_bpm, wire, beampath, physics_model)
+        x_wire_mm, y_wire_mm = _propagate_to_wire(
+            bpm_positions, wire, beampath, physics_model
+        )
     except Exception as exc:
         logger.warning("Model lookup failed: %s", exc)
+        first_pos = next(iter(bpm_positions.values()))
         return SuggestedRange(
             x_center=None,
             y_center=None,
             x_range=None,
             y_range=None,
             u_range=None,
-            bpm_name=chosen_bpm,
-            bpm_x_mm=bpm_x_mm,
-            bpm_y_mm=bpm_y_mm,
+            bpm_name=next(iter(bpm_positions)),
+            bpm_x_mm=first_pos[0],
+            bpm_y_mm=first_pos[1],
             status="model_unavailable",
             message=f"Could not retrieve R-matrix: {exc}",
         )
-
-    x_wire_mm = rmat[0, 0] * bpm_x_mm
-    y_wire_mm = rmat[2, 2] * bpm_y_mm
 
     x_deviation_um = x_wire_mm * 1000.0
     y_deviation_um = y_wire_mm * 1000.0
@@ -119,52 +119,115 @@ def suggest_scan_range(
         x_deviation_um, y_deviation_um, half_window_um, wire.install_angle, u_ref_um
     )
 
+    bpm_names_used = ", ".join(bpm_positions.keys())
+    first_bpm = next(iter(bpm_positions))
+    first_pos = bpm_positions[first_bpm]
+
     return SuggestedRange(
         x_center=x_center_um,
         y_center=y_center_um,
         x_range=x_range,
         y_range=y_range,
         u_range=u_range,
-        bpm_name=chosen_bpm,
-        bpm_x_mm=bpm_x_mm,
-        bpm_y_mm=bpm_y_mm,
+        bpm_name=bpm_names_used,
+        bpm_x_mm=first_pos[0],
+        bpm_y_mm=first_pos[1],
         status="ok",
-        message="Range suggestion ready.",
+        message=f"Range suggestion ready ({len(bpm_positions)} BPMs used).",
     )
 
 
-def _resolve_bpm_name(wire, override: str | None) -> str | None:
+def _resolve_bpm_names(wire, override: str | None) -> list[str]:
     if override:
-        return override
+        return [override]
     tmitloss = getattr(wire.metadata, "tmitloss", None)
     if tmitloss and tmitloss.upstream:
-        return tmitloss.upstream[0]
-    return None
+        return list(tmitloss.upstream)
+    return []
 
 
-def _read_bpm_position(area: str, bpm_name: str) -> tuple[float | None, float | None]:
+def _read_multiple_bpm_positions(
+    area: str, bpm_names: list[str]
+) -> dict[str, tuple[float, float]]:
+    """Read positions from all available BPMs, skipping any that are offline."""
     from slac_devices.reader import create_bpm
 
-    bpm = create_bpm(area=area, name=bpm_name)
-    if bpm is None:
-        return None, None
-    try:
-        x = bpm.x
-        y = bpm.y
-    except Exception:
-        return None, None
-    if x is None or y is None:
-        return None, None
-    return float(x), float(y)
+    positions = {}
+    for name in bpm_names:
+        bpm = create_bpm(area=area, name=name)
+        if bpm is None:
+            continue
+        try:
+            x = bpm.x
+            y = bpm.y
+        except Exception:
+            continue
+        if x is None or y is None:
+            continue
+        positions[name] = (float(x), float(y))
+    return positions
 
 
-def _get_rmat(
-    bpm_name: str, wire, beampath: str, physics_model: str
-) -> np.ndarray:
+def _propagate_to_wire(
+    bpm_positions: dict[str, tuple[float, float]],
+    wire,
+    beampath: str,
+    physics_model: str,
+) -> tuple[float, float]:
+    """Propagate BPM readings to wire position using R-matrices.
+
+    With 1 BPM: zero-angle approximation (position-only).
+    With 2+ BPMs: least-squares fit for [position, angle] at the first BPM,
+    then full state propagation to the wire.
+    """
     from meme.model import Model
 
     model = Model(beampath, model_source=physics_model, use_design=False)
-    return model.get_rmat(from_device=bpm_name, to_device=wire.name)
+    bpm_names = list(bpm_positions.keys())
+    ref_bpm = bpm_names[0]
+
+    rmat_to_wire = model.get_rmat(from_device=ref_bpm, to_device=wire.name)
+
+    if len(bpm_names) == 1:
+        x_mm, y_mm = bpm_positions[ref_bpm]
+        x_wire = rmat_to_wire[0, 0] * x_mm
+        y_wire = rmat_to_wire[2, 2] * y_mm
+        return x_wire, y_wire
+
+    # Build overdetermined system: for each BPM i,
+    #   x_i = R_i[0,0] * x0 + R_i[0,1] * x0'
+    # where R_i is the R-matrix from ref_bpm to bpm_i.
+    x_measurements = []
+    y_measurements = []
+    Ax_rows = []
+    Ay_rows = []
+
+    for name in bpm_names:
+        x_mm, y_mm = bpm_positions[name]
+        if name == ref_bpm:
+            Ax_rows.append([1.0, 0.0])
+            Ay_rows.append([1.0, 0.0])
+        else:
+            rmat_i = model.get_rmat(from_device=ref_bpm, to_device=name)
+            Ax_rows.append([rmat_i[0, 0], rmat_i[0, 1]])
+            Ay_rows.append([rmat_i[2, 2], rmat_i[2, 3]])
+        x_measurements.append(x_mm)
+        y_measurements.append(y_mm)
+
+    Ax = np.array(Ax_rows)
+    Ay = np.array(Ay_rows)
+    bx = np.array(x_measurements)
+    by = np.array(y_measurements)
+
+    # Least-squares: solve for [x0, x0'] and [y0, y0'] at ref_bpm
+    x_state, _, _, _ = np.linalg.lstsq(Ax, bx, rcond=None)
+    y_state, _, _, _ = np.linalg.lstsq(Ay, by, rcond=None)
+
+    # Propagate full state vector to wire
+    x_wire = rmat_to_wire[0, 0] * x_state[0] + rmat_to_wire[0, 1] * x_state[1]
+    y_wire = rmat_to_wire[2, 2] * y_state[0] + rmat_to_wire[2, 3] * y_state[1]
+
+    return x_wire, y_wire
 
 
 def _compute_range(center_um: float, half_window_um: int) -> tuple[int, int]:

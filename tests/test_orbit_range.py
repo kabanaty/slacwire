@@ -57,27 +57,41 @@ class TestComputeURange:
 
 
 class TestSuggestScanRange:
-    @patch("slacwire.orbit_range._get_rmat")
-    @patch("slacwire.orbit_range._read_bpm_position")
-    def test_happy_path(self, mock_read_bpm, mock_get_rmat, mock_wire):
-        mock_read_bpm.return_value = (2.0, -1.5)
-        rmat = np.eye(6)
-        rmat[0, 0] = 1.2
-        rmat[2, 2] = 0.8
-        mock_get_rmat.return_value = rmat
+    @patch("slacwire.orbit_range._propagate_to_wire")
+    @patch("slacwire.orbit_range._read_multiple_bpm_positions")
+    def test_single_bpm(self, mock_read_multi, mock_propagate, mock_wire):
+        mock_read_multi.return_value = {"BPM0H04": (2.0, -1.5)}
+        # Propagation returns wire position in mm (deviation from design)
+        mock_propagate.return_value = (2.4, -1.2)
 
         result = suggest_scan_range(mock_wire, beampath="CU_HXR", half_window_um=5000)
 
         assert result.status == "ok"
-        assert result.bpm_name == "BPM0H04"
+        assert "BPM0H04" in result.bpm_name
         assert result.bpm_x_mm == 2.0
         assert result.bpm_y_mm == -1.5
-        # x deviation = 1.2 * 2.0 = 2.4 mm = 2400 um, ref midpoint = 29000
+        # x deviation = 2.4 mm = 2400 um, ref midpoint = 29000
         assert result.x_center == pytest.approx(29000 + 2400.0)
         assert result.x_range == (29000 + 2400 - 5000, 29000 + 2400 + 5000)
-        # y deviation = 0.8 * -1.5 = -1.2 mm = -1200 um, ref midpoint = 39000
+        # y deviation = -1.2 mm = -1200 um, ref midpoint = 39000
         assert result.y_center == pytest.approx(39000 - 1200.0)
         assert result.y_range == (39000 - 1200 - 5000, 39000 - 1200 + 5000)
+
+    @patch("slacwire.orbit_range._propagate_to_wire")
+    @patch("slacwire.orbit_range._read_multiple_bpm_positions")
+    def test_multi_bpm(self, mock_read_multi, mock_propagate, mock_wire):
+        mock_read_multi.return_value = {
+            "BPM0H04": (1.0, 0.5),
+            "BPM0H01": (1.1, 0.6),
+        }
+        mock_propagate.return_value = (1.5, 0.8)
+
+        result = suggest_scan_range(mock_wire, beampath="CU_HXR", half_window_um=2000)
+
+        assert result.status == "ok"
+        assert "BPM0H04" in result.bpm_name
+        assert "BPM0H01" in result.bpm_name
+        assert "2 BPMs used" in result.message
 
     def test_no_upstream_bpm(self, mock_wire):
         mock_wire.metadata.tmitloss = None
@@ -87,35 +101,35 @@ class TestSuggestScanRange:
         assert result.status == "no_bpm_configured"
         assert result.x_range is None
 
-    @patch("slacwire.orbit_range._read_bpm_position")
-    def test_bpm_offline(self, mock_read_bpm, mock_wire):
-        mock_read_bpm.return_value = (None, None)
+    @patch("slacwire.orbit_range._read_multiple_bpm_positions")
+    def test_all_bpms_offline(self, mock_read_multi, mock_wire):
+        mock_read_multi.return_value = {}
 
         result = suggest_scan_range(mock_wire, beampath="CU_HXR")
 
         assert result.status == "bpm_offline"
         assert result.bpm_name == "BPM0H04"
 
-    @patch("slacwire.orbit_range._get_rmat")
-    @patch("slacwire.orbit_range._read_bpm_position")
-    def test_model_unavailable(self, mock_read_bpm, mock_get_rmat, mock_wire):
-        mock_read_bpm.return_value = (1.0, 1.0)
-        mock_get_rmat.side_effect = RuntimeError("MEME service down")
+    @patch("slacwire.orbit_range._propagate_to_wire")
+    @patch("slacwire.orbit_range._read_multiple_bpm_positions")
+    def test_model_unavailable(self, mock_read_multi, mock_propagate, mock_wire):
+        mock_read_multi.return_value = {"BPM0H04": (1.0, 1.0)}
+        mock_propagate.side_effect = RuntimeError("MEME service down")
 
         result = suggest_scan_range(mock_wire, beampath="CU_HXR")
 
         assert result.status == "model_unavailable"
         assert "MEME service down" in result.message
 
-    @patch("slacwire.orbit_range._get_rmat")
-    @patch("slacwire.orbit_range._read_bpm_position")
-    def test_explicit_bpm_override(self, mock_read_bpm, mock_get_rmat, mock_wire):
-        mock_read_bpm.return_value = (0.5, 0.5)
-        mock_get_rmat.return_value = np.eye(6)
+    @patch("slacwire.orbit_range._propagate_to_wire")
+    @patch("slacwire.orbit_range._read_multiple_bpm_positions")
+    def test_explicit_bpm_override(self, mock_read_multi, mock_propagate, mock_wire):
+        mock_read_multi.return_value = {"BPM_CUSTOM": (0.5, 0.5)}
+        mock_propagate.return_value = (0.5, 0.5)
 
         result = suggest_scan_range(
             mock_wire, beampath="CU_HXR", bpm_name="BPM_CUSTOM"
         )
 
-        assert result.bpm_name == "BPM_CUSTOM"
-        mock_read_bpm.assert_called_once_with("HTR", "BPM_CUSTOM")
+        assert "BPM_CUSTOM" in result.bpm_name
+        mock_read_multi.assert_called_once_with("HTR", ["BPM_CUSTOM"])
