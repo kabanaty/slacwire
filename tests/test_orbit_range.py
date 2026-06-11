@@ -19,6 +19,9 @@ def mock_wire():
     wire.name = "WS01"
     wire.area = "HTR"
     wire.install_angle = 45.0
+    wire.x_range = [27000, 31000]  # midpoint = 29000
+    wire.y_range = [37000, 41000]  # midpoint = 39000
+    wire.u_range = [12000, 16000]  # midpoint = 14000
     wire.metadata.tmitloss.upstream = ["BPM0H04", "BPM0H01"]
     wire.metadata.beam_path = ["CU_HXR"]
     return wire
@@ -69,12 +72,12 @@ class TestSuggestScanRange:
         assert result.bpm_name == "BPM0H04"
         assert result.bpm_x_mm == 2.0
         assert result.bpm_y_mm == -1.5
-        # x_wire_mm = 1.2 * 2.0 = 2.4 -> 2400 um
-        assert result.x_center == pytest.approx(2400.0)
-        assert result.x_range == (2400 - 5000, 2400 + 5000)
-        # y_wire_mm = 0.8 * -1.5 = -1.2 -> -1200 um
-        assert result.y_center == pytest.approx(-1200.0)
-        assert result.y_range == (-1200 - 5000, -1200 + 5000)
+        # x deviation = 1.2 * 2.0 = 2.4 mm = 2400 um, ref midpoint = 29000
+        assert result.x_center == pytest.approx(29000 + 2400.0)
+        assert result.x_range == (29000 + 2400 - 5000, 29000 + 2400 + 5000)
+        # y deviation = 0.8 * -1.5 = -1.2 mm = -1200 um, ref midpoint = 39000
+        assert result.y_center == pytest.approx(39000 - 1200.0)
+        assert result.y_range == (39000 - 1200 - 5000, 39000 - 1200 + 5000)
 
     def test_no_upstream_bpm(self, mock_wire):
         mock_wire.metadata.tmitloss = None

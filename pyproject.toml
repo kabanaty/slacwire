@@ -31,6 +31,7 @@ readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
 
 [project.scripts]
+slacwire = "slacwire.__main__:main"
 slacwire-kpi-report = "slacwire.registry.kpi_cli:main"
 slacwire-log-run = "slacwire.registry.log_run_cli:main"
 

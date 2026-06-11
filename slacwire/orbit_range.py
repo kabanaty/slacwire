@@ -101,8 +101,15 @@ def suggest_scan_range(
     x_wire_mm = rmat[0, 0] * bpm_x_mm
     y_wire_mm = rmat[2, 2] * bpm_y_mm
 
-    x_center_um = x_wire_mm * 1000.0
-    y_center_um = y_wire_mm * 1000.0
+    x_deviation_um = x_wire_mm * 1000.0
+    y_deviation_um = y_wire_mm * 1000.0
+
+    # Offset into motor coordinates: midpoint of current range = design orbit
+    x_ref_um = sum(wire.x_range) / 2.0
+    y_ref_um = sum(wire.y_range) / 2.0
+
+    x_center_um = x_ref_um + x_deviation_um
+    y_center_um = y_ref_um + y_deviation_um
 
     x_range = _compute_range(x_center_um, half_window_um)
     y_range = _compute_range(y_center_um, half_window_um)
