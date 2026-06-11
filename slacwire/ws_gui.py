@@ -11,6 +11,7 @@ from qtpy.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 from slacwire.widgets.measurement import MeasurementWidget, extract_measurement_data
 from slacwire.widgets.navigation import NavigationWidget
 from slacwire.widgets.plots import PlotWidget
+from slacwire.widgets.suggest_range import SuggestRangeWidget
 from slacwire.widgets.text_logger import attach_logger_to_widget
 from slacwire.suite import WireScanSuite
 
@@ -92,6 +93,7 @@ class WireScanSuiteGUI(Display):
             create_wire_fn=self._create_wire,
         )
         self.plots = PlotWidget()
+        self.suggest_range = SuggestRangeWidget()
 
         self.suite = self._build_suite()
         self.current_runs = {}
@@ -101,6 +103,8 @@ class WireScanSuiteGUI(Display):
         self.nav.beampathChanged.connect(self._on_beampath_changed)
         self.measurement.wireChanged.connect(self.update_parameters)
         self.measurement.wireChanged.connect(self.update_plots)
+        self.measurement.wireChanged.connect(self._update_suggest_range_context)
+        self.suggest_range.rangeAccepted.connect(self._apply_suggested_range)
         self.measurement.detectorChanged.connect(self._on_detector_changed)
         self.measurement.detectorChanged.connect(self.update_plots)
         self.dataChanged.connect(self.update_plots)
@@ -136,6 +140,7 @@ class WireScanSuiteGUI(Display):
     def init_ui(self):
         self.ControlsLayout.insertWidget(0, self.nav)
         self.ControlsLayout.insertWidget(1, self.measurement)
+        self.ControlsLayout.insertWidget(2, self.suggest_range)
         self.measurement.wireChanged.emit(self.measurement.wire)
 
         self.ui.startButton.clicked.connect(self.start_scan_callback)
@@ -188,6 +193,20 @@ class WireScanSuiteGUI(Display):
     def _on_detector_changed(self, detector: str):
         if detector:
             self.suite.detector = detector
+
+    def _update_suggest_range_context(self):
+        wire = self.measurement.my_wire
+        self.suggest_range.set_context(wire=wire, beampath=self.nav.beampath)
+
+    def _apply_suggested_range(self, plane: str, range_values: list):
+        wire = self.measurement.my_wire
+        if wire is None:
+            return
+        wire.set_range(plane, range_values)
+        self.logger.info(
+            "Applied suggested %s range [%d, %d] to %s",
+            plane.upper(), range_values[0], range_values[1], wire.name,
+        )
 
     def update_parameters(self):
         children = self.ui.ParametersGroupBox.findChildren(QWidget)
