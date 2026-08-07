@@ -110,7 +110,8 @@ class ParametersWidget(QGroupBox):
             pv_obj = getattr(self._wire.controls_information.PVs, f"{plane}_wire_inner", None)
             if pv_obj is not None:
                 val = pv_obj.get()
-                getattr(self, f"{plane}_start_position").setText(str(int(val)))
+                if val is not None:
+                    getattr(self, f"{plane}_start_position").setText(str(int(val)))
 
     def _build_override_tab(self):
         self.override_tab = QWidget()
