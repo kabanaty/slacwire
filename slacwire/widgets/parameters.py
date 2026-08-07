@@ -60,19 +60,26 @@ class ParametersWidget(QGroupBox):
         self.y_start_position = QLineEdit()
         self.u_start_position = QLineEdit()
 
+        self.x_apply_button = QPushButton("Apply")
+        self.y_apply_button = QPushButton("Apply")
+        self.u_apply_button = QPushButton("Apply")
+
+        self.x_apply_button.clicked.connect(lambda: self._apply_auto_range("x"))
+        self.y_apply_button.clicked.connect(lambda: self._apply_auto_range("y"))
+        self.u_apply_button.clicked.connect(lambda: self._apply_auto_range("u"))
+
         layout.addWidget(self.use_x_wire_auto, 1, 0)
         layout.addWidget(self.x_start_position, 1, 1)
+        layout.addWidget(self.x_apply_button, 1, 2)
         layout.addWidget(self.use_y_wire_auto, 2, 0)
         layout.addWidget(self.y_start_position, 2, 1)
+        layout.addWidget(self.y_apply_button, 2, 2)
         layout.addWidget(self.use_u_wire_auto, 3, 0)
         layout.addWidget(self.u_start_position, 3, 1)
-
-        self.apply_auto_range_button = QPushButton("Apply Auto Range")
-        self.apply_auto_range_button.clicked.connect(self._apply_auto_range)
-        layout.addWidget(self.apply_auto_range_button, 4, 1)
+        layout.addWidget(self.u_apply_button, 3, 2)
 
         self.center_on_mean_button = QPushButton("Center on Last Mean")
-        layout.addWidget(self.center_on_mean_button, 5, 1)
+        layout.addWidget(self.center_on_mean_button, 4, 1)
 
         self.auto_tab.setLayout(layout)
 
@@ -86,16 +93,15 @@ class ParametersWidget(QGroupBox):
                 checkbox = getattr(self, f"use_{plane}_wire_auto")
                 checkbox.channel = use_pv.pvname
 
-    def _apply_auto_range(self):
+    def _apply_auto_range(self, plane):
         if self._wire is None:
             return
-        for plane in self._wire.active_profiles():
-            text = getattr(self, f"{plane}_start_position").text()
-            try:
-                start = int(text)
-            except ValueError:
-                continue
-            self._wire.set_range_from_start(plane, start)
+        text = getattr(self, f"{plane}_start_position").text()
+        try:
+            start = int(text)
+        except ValueError:
+            return
+        self._wire.set_range_from_start(plane, start)
 
     def _refresh_start_positions(self):
         if self._wire is None:
