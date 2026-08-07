@@ -116,6 +116,9 @@ class WireScanSuiteGUI(Display):
         self.measurement.jitter_checkbox.stateChanged.connect(
             self._on_jitter_toggled
         )
+        self.parameters.center_on_mean_button.clicked.connect(
+            self._center_on_last_mean
+        )
         self.dataChanged.connect(self.update_plots)
         self.plots.profile_control.profileChanged.connect(
             self.update_profile_plot
@@ -239,6 +242,37 @@ class WireScanSuiteGUI(Display):
     def _update_auto_start_positions(self):
         if self.measurement.active_wire is not None:
             self.parameters.update_start_positions(self.measurement.active_wire)
+
+    def _center_on_last_mean(self):
+        wire = self.measurement.wire
+        device = self.measurement.active_wire
+        if device is None:
+            return
+
+        data = None
+        if wire in self.suite.results and self.suite.results[wire]:
+            data = self.suite.results[wire][-1]
+        elif wire in self.loaded_results:
+            data = self.loaded_results[wire]
+
+        if data is None or not hasattr(data, "fit_result"):
+            self.logger.warning("No fit results available for %s.", wire)
+            return
+
+        meta = data.collection_result.metadata
+        detector = self.measurement.detector or meta.rms_detector or meta.default_detector
+        if ":" in detector:
+            detector = detector.split(":", 1)[0]
+
+        for plane in device.active_profiles():
+            if plane not in data.fit_result:
+                continue
+            det_fit = data.fit_result[plane].detectors.get(detector)
+            if det_fit is None:
+                continue
+            device.center_range_on_mean(plane, det_fit.mean)
+
+        self.parameters.update_start_positions(device)
 
     def _apply_auto_parameters(self):
         device = self.measurement.active_wire

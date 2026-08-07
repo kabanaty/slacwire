@@ -7,6 +7,7 @@ from qtpy.QtWidgets import (
     QLabel,
     QLineEdit,
     QCheckBox,
+    QPushButton,
 )
 from pydm.widgets import PyDMLineEdit, PyDMCheckbox
 
@@ -53,6 +54,9 @@ class ParametersWidget(QGroupBox):
         layout.addWidget(self.y_start_position, 2, 1)
         layout.addWidget(self.use_u_wire_auto, 3, 0)
         layout.addWidget(self.u_start_position, 3, 1)
+
+        self.center_on_mean_button = QPushButton("Center on Last Mean")
+        layout.addWidget(self.center_on_mean_button, 4, 1)
 
         self.auto_tab.setLayout(layout)
 
