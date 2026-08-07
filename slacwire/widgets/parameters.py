@@ -1,5 +1,4 @@
 from qtpy.QtWidgets import (
-    QGroupBox,
     QTabWidget,
     QWidget,
     QGridLayout,
@@ -11,9 +10,9 @@ from qtpy.QtWidgets import (
 from pydm.widgets import PyDMLineEdit, PyDMCheckbox
 
 
-class ParametersWidget(QGroupBox):
+class ParametersWidget(QWidget):
     def __init__(self, parent=None):
-        super().__init__("Parameters", parent)
+        super().__init__(parent)
 
         self.tab_widget = QTabWidget()
 
