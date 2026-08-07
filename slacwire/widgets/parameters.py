@@ -5,7 +5,7 @@ from qtpy.QtWidgets import (
     QGridLayout,
     QVBoxLayout,
     QLabel,
-    QSpinBox,
+    QLineEdit,
     QCheckBox,
 )
 from pydm.widgets import PyDMLineEdit, PyDMCheckbox
@@ -36,18 +36,15 @@ class ParametersWidget(QGroupBox):
         layout = QGridLayout()
 
         layout.addWidget(QLabel("Start Position"), 0, 1)
+        layout.setRowStretch(0, 0)
 
         self.use_x_wire_auto = QCheckBox("Use X Wire")
         self.use_y_wire_auto = QCheckBox("Use Y Wire")
         self.use_u_wire_auto = QCheckBox("Use U Wire")
 
-        self.x_start_position = QSpinBox()
-        self.y_start_position = QSpinBox()
-        self.u_start_position = QSpinBox()
-
-        for spinbox in (self.x_start_position, self.y_start_position, self.u_start_position):
-            spinbox.setRange(-50000, 50000)
-            spinbox.setSuffix(" µm")
+        self.x_start_position = QLineEdit()
+        self.y_start_position = QLineEdit()
+        self.u_start_position = QLineEdit()
 
         layout.addWidget(self.use_x_wire_auto, 1, 0)
         layout.addWidget(self.x_start_position, 1, 1)
@@ -57,6 +54,14 @@ class ParametersWidget(QGroupBox):
         layout.addWidget(self.u_start_position, 3, 1)
 
         self.auto_tab.setLayout(layout)
+
+    def update_start_positions(self, wire):
+        """Initialize start position fields from current PV inner values."""
+        for plane in ("x", "y", "u"):
+            pv_obj = getattr(wire.controls_information.PVs, f"{plane}_wire_inner", None)
+            if pv_obj is not None:
+                val = pv_obj.get()
+                getattr(self, f"{plane}_start_position").setText(str(int(val)))
 
     def _build_override_tab(self):
         self.override_tab = QWidget()

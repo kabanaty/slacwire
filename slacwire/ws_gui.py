@@ -109,6 +109,7 @@ class WireScanSuiteGUI(Display):
         self.nav.areaChanged.connect(self.measurement.update_area)
         self.nav.beampathChanged.connect(self._on_beampath_changed)
         self.measurement.wireChanged.connect(self.update_parameters)
+        self.measurement.wireChanged.connect(self._update_auto_start_positions)
         self.measurement.wireChanged.connect(self.update_plots)
         self.measurement.detectorChanged.connect(self._on_detector_changed)
         self.measurement.detectorChanged.connect(self.update_plots)
@@ -235,13 +236,17 @@ class WireScanSuiteGUI(Display):
             if pv_obj is not None:
                 child.channel = pv_obj.pvname
 
+    def _update_auto_start_positions(self):
+        if self.measurement.active_wire is not None:
+            self.parameters.update_start_positions(self.measurement.active_wire)
+
     def _apply_auto_parameters(self):
         device = self.measurement.active_wire
         for plane in ("x", "y", "u"):
             checked = getattr(self.parameters, f"use_{plane}_wire_auto").isChecked()
             device.use(plane, checked)
         for plane in device.active_profiles():
-            start = getattr(self.parameters, f"{plane}_start_position").value()
+            start = int(getattr(self.parameters, f"{plane}_start_position").text())
             device.set_range_from_start(plane, start)
         mps = device.mps_speed
         speed_min = max(mps, 1000.0) if mps > 0 else 1000.0
