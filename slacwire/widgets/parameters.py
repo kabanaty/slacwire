@@ -67,6 +67,16 @@ class ParametersWidget(QGroupBox):
         layout.addWidget(self.use_u_wire_auto, 3, 0)
         layout.addWidget(self.u_start_position, 3, 1)
 
+        self.x_start_position.returnPressed.connect(
+            lambda: self._on_start_position_submitted("x")
+        )
+        self.y_start_position.returnPressed.connect(
+            lambda: self._on_start_position_submitted("y")
+        )
+        self.u_start_position.returnPressed.connect(
+            lambda: self._on_start_position_submitted("u")
+        )
+
         self.center_on_mean_button = QPushButton("Center on Last Mean")
         layout.addWidget(self.center_on_mean_button, 4, 1)
 
@@ -81,6 +91,16 @@ class ParametersWidget(QGroupBox):
             if use_pv is not None:
                 checkbox = getattr(self, f"use_{plane}_wire_auto")
                 checkbox.channel = use_pv.pvname
+
+    def _on_start_position_submitted(self, plane):
+        if self._wire is None:
+            return
+        text = getattr(self, f"{plane}_start_position").text()
+        try:
+            start = int(text)
+        except ValueError:
+            return
+        self._wire.set_range_from_start(plane, start)
 
     def _refresh_start_positions(self):
         if self._wire is None:
