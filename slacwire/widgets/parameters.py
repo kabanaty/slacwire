@@ -67,18 +67,12 @@ class ParametersWidget(QGroupBox):
         layout.addWidget(self.use_u_wire_auto, 3, 0)
         layout.addWidget(self.u_start_position, 3, 1)
 
-        self.x_start_position.returnPressed.connect(
-            lambda: self._on_start_position_submitted("x")
-        )
-        self.y_start_position.returnPressed.connect(
-            lambda: self._on_start_position_submitted("y")
-        )
-        self.u_start_position.returnPressed.connect(
-            lambda: self._on_start_position_submitted("u")
-        )
+        self.apply_auto_range_button = QPushButton("Apply Auto Range")
+        self.apply_auto_range_button.clicked.connect(self._apply_auto_range)
+        layout.addWidget(self.apply_auto_range_button, 4, 1)
 
         self.center_on_mean_button = QPushButton("Center on Last Mean")
-        layout.addWidget(self.center_on_mean_button, 4, 1)
+        layout.addWidget(self.center_on_mean_button, 5, 1)
 
         self.auto_tab.setLayout(layout)
 
@@ -92,15 +86,16 @@ class ParametersWidget(QGroupBox):
                 checkbox = getattr(self, f"use_{plane}_wire_auto")
                 checkbox.channel = use_pv.pvname
 
-    def _on_start_position_submitted(self, plane):
+    def _apply_auto_range(self):
         if self._wire is None:
             return
-        text = getattr(self, f"{plane}_start_position").text()
-        try:
-            start = int(text)
-        except ValueError:
-            return
-        self._wire.set_range_from_start(plane, start)
+        for plane in self._wire.active_profiles():
+            text = getattr(self, f"{plane}_start_position").text()
+            try:
+                start = int(text)
+            except ValueError:
+                continue
+            self._wire.set_range_from_start(plane, start)
 
     def _refresh_start_positions(self):
         if self._wire is None:
