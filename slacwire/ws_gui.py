@@ -11,9 +11,11 @@ from qtpy.QtWidgets import QFileDialog, QMessageBox, QVBoxLayout, QWidget
 
 from slacwire.widgets.measurement import MeasurementWidget, extract_measurement_data
 from slacwire.widgets.navigation import NavigationWidget
+from slacwire.widgets.parameters import ParametersWidget
 from slacwire.widgets.plots import PlotWidget
 from slacwire.widgets.text_logger import attach_logger_to_widget
 from slacwire.suite import WireScanSuite
+from slac_measurements.wires.collection.buffer import calculate_optimal_scan_pulses
 
 
 class WireScanSuiteThread(QThread):
@@ -97,6 +99,7 @@ class WireScanSuiteGUI(Display):
             area_to_wires,
             create_wire_fn=self._create_wire,
         )
+        self.parameters = ParametersWidget()
         self.plots = PlotWidget()
 
         self.suite = self._build_suite()
@@ -145,6 +148,7 @@ class WireScanSuiteGUI(Display):
     def init_ui(self):
         self.ControlsLayout.insertWidget(0, self.nav)
         self.ControlsLayout.insertWidget(1, self.measurement)
+        self.ui.verticalLayout_3.insertWidget(0, self.parameters)
         self.measurement.wireChanged.emit(self.measurement.wire)
 
         self.ui.startButton.clicked.connect(self.start_scan_callback)
@@ -218,7 +222,7 @@ class WireScanSuiteGUI(Display):
         if self.measurement.active_wire is None:
             return
 
-        children = self.ui.ParametersGroupBox.findChildren(QWidget)
+        children = self.parameters.override_tab.findChildren(QWidget)
         for child in children:
             name = child.objectName()
             if name.endswith("Label"):
@@ -231,11 +235,31 @@ class WireScanSuiteGUI(Display):
             if pv_obj is not None:
                 child.channel = pv_obj.pvname
 
+    def _apply_auto_parameters(self):
+        device = self.measurement.active_wire
+        for plane in ("x", "y", "u"):
+            checked = getattr(self.parameters, f"use_{plane}_wire_auto").isChecked()
+            device.use(plane, checked)
+        for plane in device.active_profiles():
+            start = getattr(self.parameters, f"{plane}_start_position").value()
+            device.set_range_from_start(plane, start)
+        mps = device.mps_speed
+        speed_min = max(mps, 1000.0) if mps > 0 else 1000.0
+        pulses = calculate_optimal_scan_pulses(
+            beam_rate=device.beam_rate,
+            beampath=self.suite.beampath,
+            speed_min=speed_min,
+            speed_max=device.speed_max,
+        )
+        device.scan_pulses = pulses
+
     def start_scan_callback(self):
         wire_identifier = self._selected_wire_identifier()
         self.ui.startButton.setEnabled(False)
 
         self.suite.beampath = self.nav.beampath
+        if self.parameters.is_auto_mode:
+            self._apply_auto_parameters()
         if self.measurement.detector:
             self.suite.detector = self.measurement.detector
         self.suite.save = True
