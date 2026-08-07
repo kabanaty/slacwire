@@ -152,7 +152,7 @@ class WireScanSuiteGUI(Display):
     def init_ui(self):
         self.ControlsLayout.insertWidget(0, self.nav)
         self.ControlsLayout.insertWidget(1, self.measurement)
-        self.ui.verticalLayout_3.insertWidget(0, self.parameters)
+        self.ControlsLayout.insertWidget(2, self.parameters)
         self.measurement.wireChanged.emit(self.measurement.wire)
 
         self.ui.startButton.clicked.connect(self.start_scan_callback)
