@@ -22,10 +22,17 @@ class ParametersWidget(QGroupBox):
 
         self.tab_widget.addTab(self.auto_tab, "Auto")
         self.tab_widget.addTab(self.override_tab, "Override")
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
 
         layout = QVBoxLayout()
         layout.addWidget(self.tab_widget)
         self.setLayout(layout)
+
+        self._wire = None
+
+    def _on_tab_changed(self, index):
+        if index == 0 and self._wire is not None:
+            self._refresh_start_positions()
 
     @property
     def is_auto_mode(self) -> bool:
@@ -67,16 +74,22 @@ class ParametersWidget(QGroupBox):
 
     def update_from_wire(self, wire):
         """Bind auto tab checkboxes to PVs and populate start positions."""
+        self._wire = wire
+        self._refresh_start_positions()
         for plane in ("x", "y", "u"):
-            pv_obj = getattr(wire.controls_information.PVs, f"{plane}_wire_inner", None)
-            if pv_obj is not None:
-                val = pv_obj.get()
-                getattr(self, f"{plane}_start_position").setText(str(int(val)))
-
             use_pv = getattr(wire.controls_information.PVs, f"use_{plane}_wire", None)
             if use_pv is not None:
                 checkbox = getattr(self, f"use_{plane}_wire_auto")
                 checkbox.channel = use_pv.pvname
+
+    def _refresh_start_positions(self):
+        if self._wire is None:
+            return
+        for plane in ("x", "y", "u"):
+            pv_obj = getattr(self._wire.controls_information.PVs, f"{plane}_wire_inner", None)
+            if pv_obj is not None:
+                val = pv_obj.get()
+                getattr(self, f"{plane}_start_position").setText(str(int(val)))
 
     def _build_override_tab(self):
         self.override_tab = QWidget()
