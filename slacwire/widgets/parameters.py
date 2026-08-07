@@ -34,9 +34,10 @@ class ParametersWidget(QGroupBox):
     def _build_auto_tab(self):
         self.auto_tab = QWidget()
         layout = QGridLayout()
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setVerticalSpacing(4)
 
         layout.addWidget(QLabel("Start Position"), 0, 1)
-        layout.setRowStretch(0, 0)
 
         self.use_x_wire_auto = QCheckBox("Use X Wire")
         self.use_y_wire_auto = QCheckBox("Use Y Wire")
@@ -66,6 +67,8 @@ class ParametersWidget(QGroupBox):
     def _build_override_tab(self):
         self.override_tab = QWidget()
         layout = QGridLayout()
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setVerticalSpacing(4)
 
         layout.addWidget(QLabel("Inner"), 0, 1)
         layout.addWidget(QLabel("Outer"), 0, 2)
