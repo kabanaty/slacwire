@@ -60,6 +60,7 @@ class MeasurementWidget(QGroupBox):
         self.detector_combo.currentTextChanged.connect(self.detectorChanged)
         self.wireChanged.connect(self.update_detectors)
         self.wireChanged.connect(self.update_bpms)
+        self.wireChanged.connect(self._apply_config)
 
         self.update_area("HTR")
 
@@ -129,7 +130,6 @@ class MeasurementWidget(QGroupBox):
             print(f"Failed to create wire {wire} in area {self.current_area}: {e}")
             return
 
-        self._apply_config()
         self.wireChanged.emit(wire)
 
     def set_fit_control(self, fit_control):

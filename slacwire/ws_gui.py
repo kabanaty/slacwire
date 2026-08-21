@@ -29,6 +29,7 @@ class WireScanSuiteThread(QThread):
         detector: str,
         jitter_correction: bool = False,
         charge_normalization: bool = False,
+        jitter_bpms: list[str] | None = None,
     ):
         super().__init__()
         self.suite = suite
@@ -37,6 +38,7 @@ class WireScanSuiteThread(QThread):
         self.detector = detector
         self.jitter_correction = jitter_correction
         self.charge_normalization = charge_normalization
+        self.jitter_bpms = jitter_bpms
 
     def run(self):
         try:
@@ -56,6 +58,7 @@ class WireScanSuiteThread(QThread):
                 scan_mode="otf",
                 jitter_correction=self.jitter_correction,
                 charge_normalization=self.charge_normalization,
+                jitter_bpms=self.jitter_bpms,
             )
 
             # Retrieve the latest run data and entry from registry
@@ -210,7 +213,10 @@ class WireScanSuiteGUI(Display):
             return
 
         jitter_on = state != 0
-        new_data = data.reanalyze(jitter_correction=jitter_on)
+        new_data = data.reanalyze(
+            jitter_correction=jitter_on,
+            jitter_bpms=self.measurement.selected_bpms or None,
+        )
 
         if wire in self.suite.results and self.suite.results[wire]:
             self.suite.results[wire][-1] = new_data
@@ -225,7 +231,11 @@ class WireScanSuiteGUI(Display):
         if data is None or not hasattr(data, "reanalyze"):
             return
 
-        new_data = data.reanalyze(fitting_method=method)
+        new_data = data.reanalyze(
+            fitting_method=method,
+            jitter_correction=self.measurement.jitter_enabled,
+            jitter_bpms=self.measurement.selected_bpms or None,
+        )
 
         if wire in self.suite.results and self.suite.results[wire]:
             self.suite.results[wire][-1] = new_data
@@ -285,6 +295,7 @@ class WireScanSuiteGUI(Display):
             detector=self.measurement.detector or self.suite.detector,
             jitter_correction=self.measurement.jitter_enabled,
             charge_normalization=self.measurement.charge_normalized,
+            jitter_bpms=self.measurement.selected_bpms or None,
         )
         self.thread.scan_complete.connect(self.on_scan_complete)
         self.thread.scan_failed.connect(self.on_scan_failure)

@@ -115,7 +115,7 @@ class JitterCompareMixin:
             x_beam_uncorrected = stage_to_beam(x_stage, profile, install_angle)
 
             try:
-                jitter_x, jitter_y = compute_jitter(
+                jitter_x, jitter_y, _ = compute_jitter(
                     data.collection_result, meta.beampath, "BMAD"
                 )
                 if profile == "x":
@@ -427,7 +427,7 @@ class JitterCompareMixin:
             x_beam = stage_to_beam(x_stage, "y", install_angle)
 
             try:
-                jitter_x, jitter_y = compute_jitter(
+                jitter_x, jitter_y, _ = compute_jitter(
                     data.collection_result, meta.beampath, "BMAD"
                 )
                 jy = jitter_y[y_profile.profile_indices]

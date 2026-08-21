@@ -85,6 +85,7 @@ class RunMixin:
         jitter_correction: bool | None = None,
         charge_normalization: bool | None = None,
         charge_toroid: str | None = None,
+        jitter_bpms: list[str] | None = None,
     ):
         """Run a single wire in the requested scan mode.
 
@@ -119,6 +120,7 @@ class RunMixin:
             else config.charge_normalization
         )
         resolved_toroid = charge_toroid or config.toroid
+        resolved_bpms = jitter_bpms or config.jitter_bpms
 
         self._run_device_scan(
             device=device,
@@ -129,6 +131,7 @@ class RunMixin:
                 jitter_correction=resolved_jitter,
                 charge_normalization=resolved_charge_norm,
                 charge_toroid=resolved_toroid,
+                jitter_bpms=resolved_bpms,
                 **kw,
             ),
             rms_detector=rms_detector,
@@ -143,6 +146,7 @@ class RunMixin:
         jitter_correction: bool = False,
         charge_normalization: bool = False,
         charge_toroid: str | None = None,
+        jitter_bpms: list[str] | None = None,
     ):
         """Create a measurement and execute it."""
         measurement = WireBeamProfileMeasurement(
@@ -154,6 +158,7 @@ class RunMixin:
             jitter_correction=jitter_correction,
             charge_normalization=charge_normalization,
             charge_toroid=charge_toroid,
+            jitter_bpms=jitter_bpms,
         )
 
     def _run_device_scan(
