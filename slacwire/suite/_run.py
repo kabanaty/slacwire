@@ -42,16 +42,22 @@ class RunMixin:
             self.show = False
 
         file_prefix = "OTF" if scan_mode.lower() == "otf" else "Step"
+        failed_wires: list[tuple[str, Exception]] = []
 
         for wire in self.wires:
-            self.run_single(
-                wire=wire,
-                scan_mode=scan_mode,
-                rms_detector=rms_detector,
-                jitter_correction=jitter_correction,
-                charge_normalization=charge_normalization,
-                charge_toroid=charge_toroid,
-            )
+            try:
+                self.run_single(
+                    wire=wire,
+                    scan_mode=scan_mode,
+                    rms_detector=rms_detector,
+                    jitter_correction=jitter_correction,
+                    charge_normalization=charge_normalization,
+                    charge_toroid=charge_toroid,
+                )
+            except Exception as e:
+                logger.error("Wire %s failed, continuing with remaining wires: %s", wire, e)
+                failed_wires.append((wire, e))
+                continue
 
             if multi_view:
                 data = self.latest_run(wire)
@@ -76,6 +82,12 @@ class RunMixin:
                 )
 
         self.show = show_orig
+
+        if failed_wires:
+            names = ", ".join(w for w, _ in failed_wires)
+            logger.warning("run_all completed with %d failure(s): %s", len(failed_wires), names)
+
+        return failed_wires
 
     def run_single(
         self,
