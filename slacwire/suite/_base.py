@@ -62,6 +62,11 @@ class WireScanSuiteBase:
             f"result_counts={result_counts!r})"
         )
 
+    def set_wires(self, wires: list[str]):
+        """Replace the configured wire list and rebuild device instances."""
+        self.wires = wires
+        self._build_devices()
+
     def _build_devices(self):
         """Initialize all wire device instances based on configured wires."""
         self.devices = {wire: self._make_device(wire) for wire in self.wires}
