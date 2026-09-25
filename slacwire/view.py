@@ -422,6 +422,110 @@ class WireScanView:
         return fig
 
     # ------------------------------------------------------------------
+    # Multi-detector comparison: overlay raw detector traces
+    # ------------------------------------------------------------------
+
+    def draw_detector_comparison(
+        self,
+        fig,
+        data,
+        wire: str,
+        detectors: list[str] | None = None,
+    ):
+        """Overlay all detector traces against wire position.
+
+        Wire position is drawn on the left y-axis. Each detector's raw
+        trace is min-max normalized to [0, 1] and drawn on the right
+        y-axis so signals with different amplitudes are visually
+        comparable.
+
+        Intended for embedded GUI canvases. The caller is responsible for
+        calling ``canvas.draw()`` after this returns.
+        """
+        raw = data.collection_result.raw_data
+        meta = data.collection_result.metadata
+        if detectors is None:
+            detectors = list(meta.detectors) if meta.detectors else []
+
+        traj = np.asarray(raw[wire])
+        n = len(traj)
+        scan_points = np.arange(n)
+        colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
+        fig.clf()
+        ax1 = fig.add_subplot(1, 1, 1)
+        ax2 = ax1.twinx()
+
+        ax1.plot(scan_points, traj, label="Wire Position", color="#1f77b4")
+        ax1.set_xlabel("Scan Point")
+        ax1.set_ylabel("Wire Position (µm)", color="#1f77b4")
+        ax1.tick_params(axis="y", labelcolor="#1f77b4")
+
+        for i, det in enumerate(detectors):
+            if det not in raw:
+                continue
+            values = np.asarray(raw[det])[:n]
+            vmin, vmax = float(values.min()), float(values.max())
+            norm = (values - vmin) / (vmax - vmin) if vmax != vmin else np.zeros_like(values)
+            color = colors[(i + 1) % len(colors)]
+            ax2.plot(scan_points[:len(norm)], norm, color=color, alpha=0.8, label=det)
+
+        ax2.set_ylabel("Normalized Detector Signal")
+        ax2.set_ylim(-0.05, 1.1)
+
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax2.legend(lines1 + lines2, labels1 + labels2, loc="upper right", fontsize=8)
+
+        ax1.set_title(f"{wire} — All Detectors")
+        fig.tight_layout()
+
+    def plot_detector_comparison(
+        self,
+        data,
+        wire: str,
+        detectors: list[str] | None = None,
+    ):
+        """Generate a multi-detector overlay plot.
+
+        Returns a new figure with wire position on the left axis and
+        all detector traces (normalized) on the right axis. Defaults
+        to every detector listed in the collection metadata.
+        """
+        fig = plt.figure(figsize=(12, 6))
+        self.draw_detector_comparison(fig, data, wire, detectors)
+        return fig
+
+    def render_detector_comparison(
+        self,
+        data,
+        wire: str,
+        detectors: list[str] | None = None,
+        file_prefix: str = "OTF",
+        plotdir: Path = Path("."),
+        stamp: str = "",
+        show: bool = True,
+        save: bool = True,
+    ) -> Path | None:
+        """Render a multi-detector comparison plot.
+
+        Returns:
+            Path to saved PNG, or None if save is False.
+        """
+        fig = self.plot_detector_comparison(data, wire, detectors)
+        if show:
+            fig.show()
+        path = None
+        if save:
+            path = self.save_fig(
+                fig,
+                f"{file_prefix}_DetectorCompare_{wire}",
+                plotdir,
+                stamp,
+            )
+        return path
+
+    # ------------------------------------------------------------------
     # Jitter comparison: corrected vs uncorrected Y profile overlay
     # ------------------------------------------------------------------
 

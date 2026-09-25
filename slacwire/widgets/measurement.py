@@ -134,11 +134,17 @@ class MeasurementWidget(QGroupBox):
             return
 
         detectors = getattr(self.my_wire.metadata, "detectors", [])
+        if isinstance(detectors, dict):
+            timing = "CU" if self._beampath.startswith("CU") else "SC"
+            detectors = detectors.get(timing, [])
         for detector_string in detectors:
             detector, area = detector_string.split(":")
             self.detector_combo.addItem(detector, area)
 
         default = getattr(self.my_wire.metadata, "default_detector", "")
+        if isinstance(default, dict):
+            timing = "CU" if self._beampath.startswith("CU") else "SC"
+            default = default.get(timing, "")
         if default and ":" in default:
             idx = self.detector_combo.findText(default.split(":")[0])
             if idx >= 0:
@@ -178,6 +184,8 @@ class MeasurementWidget(QGroupBox):
     def set_beampath(self, beampath: str):
         """Update the current beampath (called when NavigationWidget changes)."""
         self._beampath = beampath
+        if self.my_wire is not None:
+            self.update_detectors()
         if self.wire_combo.currentText():
             self._apply_config()
 

@@ -10,6 +10,7 @@ This sub-package composes WireScanSuite from separate concern modules:
 - _loader: load previously saved .h5 scan files
 - _diagnostics: CA cache inspection utilities
 - _jitter_compare: jitter correction comparison and FFT analysis
+- _compare: multi-detector overlay plotting for completed scans
 - _logbook: post scan results to the SLAC physics logbook
 - _beamsizes: beam size extraction for multi-device emittance
 """
@@ -21,6 +22,7 @@ from dataclasses import dataclass
 from ._base import WireScanSuiteBase
 from ._beamsizes import BeamsizesMixin
 from ._collect import CollectMixin
+from ._compare import CompareMixin
 from slacwire._constants import (
     WIRE_AREA_LOOKUP,
     VALID_BEAMPATHS,
@@ -38,7 +40,7 @@ from ._run import RunMixin
 
 
 @dataclass
-class WireScanSuite(LogbookMixin, JitterCompareMixin, DiagnosticsMixin, MotionTestMixin, CollectMixin, RunMixin, LoaderMixin, BeamsizesMixin, ResultsMixin, WireScanSuiteBase):
+class WireScanSuite(LogbookMixin, JitterCompareMixin, CompareMixin, DiagnosticsMixin, MotionTestMixin, CollectMixin, RunMixin, LoaderMixin, BeamsizesMixin, ResultsMixin, WireScanSuiteBase):
     """High-level orchestration layer for wire scanner beam profile measurements.
 
     Transforms low-level EPICS device controls (wire positioning, data collection,

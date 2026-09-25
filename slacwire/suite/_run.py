@@ -182,6 +182,9 @@ class RunMixin:
         scan_started = datetime.now()
         run_stamp = scan_started.strftime("%Y%m%d_%H%M%S")
         default_detector = device.metadata.default_detector
+        if isinstance(default_detector, dict):
+            timing = "CU" if self.beampath.startswith("CU") else "SC"
+            default_detector = default_detector.get(timing, "")
         selected_detector = (
             rms_detector if rms_detector is not None else default_detector
         )
