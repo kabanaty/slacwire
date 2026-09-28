@@ -39,6 +39,15 @@ def _to_timestamp_iso(raw: str | None) -> str:
     return dt.isoformat(timespec="seconds")
 
 
+def _serialize(value) -> str | None:
+    """Serialize dicts and lists to JSON strings for TEXT columns."""
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return json.dumps(value)
+    return value
+
+
 def _normalize_status(status: str | None) -> str:
     """Map status values to expected reporting categories."""
     if status in {"ok", "error", "unknown"}:
@@ -142,11 +151,11 @@ def convert_run_registry_json_to_sqlite(
             method = entry["method"]
             wire = entry["wire"]
             beampath = entry["beampath"]
-            detector = entry.get("detector")
-            filepath = entry.get("filepath")
-            scope_data = entry.get("scope_data")
+            detector = _serialize(entry.get("detector"))
+            filepath = _serialize(entry.get("filepath"))
+            scope_data = _serialize(entry.get("scope_data"))
             status = _normalize_status(entry.get("status"))
-            error = entry.get("error")
+            error = _serialize(entry.get("error"))
 
             conn.execute(
                 """
