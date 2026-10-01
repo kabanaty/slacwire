@@ -2,6 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
+from slac_measurements.wires.analysis.results import FitResult
+
+_EMPTY_FIT = FitResult(detectors={})
+
 
 class WireScanView:
     """View component responsible for wire scan plotting."""
@@ -48,10 +52,25 @@ class WireScanView:
         Intended for embedded GUI canvases. The caller is responsible for
         calling ``canvas.draw()`` after this returns.
         """
+        fig.clf()
+        ax = fig.add_subplot(1, 1, 1)
+        title = f"{wire} {profile.upper()} Profile for {detector}"
+
+        fit_detectors = data.fit_result.get(profile, _EMPTY_FIT).detectors
+        if detector not in fit_detectors:
+            ax.set_title(title)
+            ax.text(
+                0.5, 0.5, f"Fit failed for {detector}",
+                transform=ax.transAxes, ha="center", va="center",
+                fontsize=12, color="gray",
+            )
+            fig.tight_layout()
+            return
+
         p = data.profiles[profile]
         x_stage = np.asarray(p.positions)
         y_meas = np.asarray(p.detectors[detector].values)
-        fit_result = data.fit_result[profile].detectors[detector]
+        fit_result = fit_detectors[detector]
 
         detector_label = (
             "% Beam Loss" if detector == "TMITLOSS" else f"{detector} Counts"
@@ -65,8 +84,6 @@ class WireScanView:
         def beam_to_stage(x):
             return x / scale
 
-        fig.clf()
-        ax = fig.add_subplot(1, 1, 1)
         ax.plot(x_stage, y_meas, label="Measured", linestyle="dotted", color="blue")
         ax.set_xlabel("Wire Position (stage, µm)")
         ax.set_ylabel(detector_label)
@@ -78,7 +95,7 @@ class WireScanView:
         secax = ax.secondary_xaxis("top", functions=(stage_to_beam, beam_to_stage))
         secax.set_xlabel("Wire Position (beam, µm)")
 
-        ax.set_title(f"{wire} {profile.upper()} Profile for {detector}")
+        ax.set_title(title)
         ax.legend(loc="upper right")
         ax.grid(True, which="both", linestyle="--", alpha=0.6)
 
@@ -177,6 +194,18 @@ class WireScanView:
 
     def _subplot_profile(self, ax, data, detector: str, profile: str):
         """Draw a profile fit into an existing axes."""
+        title = f"{profile.upper()} Profile"
+
+        fit_detectors = data.fit_result.get(profile, _EMPTY_FIT).detectors
+        if detector not in fit_detectors:
+            ax.set_title(title)
+            ax.text(
+                0.5, 0.5, f"Fit failed for {detector}",
+                transform=ax.transAxes, ha="center", va="center",
+                fontsize=10, color="gray",
+            )
+            return
+
         p = data.profiles[profile]
         x_stage = np.asarray(p.positions)
         y_meas = np.asarray(p.detectors[detector].values)
@@ -186,14 +215,14 @@ class WireScanView:
 
         ax.plot(x_stage, y_meas, label="Measured", linestyle="dotted", color="blue")
 
-        fit = data.fit_result[profile].detectors[detector]
+        fit = fit_detectors[detector]
         x_beam_fit = np.asarray(fit.positions)
         y_fit = np.asarray(fit.curve)
         ax.plot(x_beam_fit / scale, y_fit, label="Fitted", linestyle="-")
 
         ax.set_xlabel("Wire Position (µm)")
         ax.set_ylabel(f"{detector} ({units})")
-        ax.set_title(f"{profile.upper()} Profile")
+        ax.set_title(title)
         ax.legend(loc="upper right", fontsize=8)
 
         params_text = (
@@ -359,12 +388,25 @@ class WireScanView:
 
     def plot_profile(self, data, profile: str, wire: str, detector: str):
         """Generate a beam profile plot with fitted curve and parameters."""
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        title = f"{wire} {profile.upper()} Profile for {detector}"
+
+        fit_detectors = data.fit_result.get(profile, _EMPTY_FIT).detectors
+        if detector not in fit_detectors:
+            ax.set_title(title)
+            ax.text(
+                0.5, 0.5, f"Fit failed for {detector}",
+                transform=ax.transAxes, ha="center", va="center",
+                fontsize=12, color="gray",
+            )
+            fig.tight_layout()
+            return fig
+
         p = data.profiles[profile]
         x_stage = np.asarray(p.positions)
         y_meas = np.asarray(p.detectors[detector].values)
 
-        fig = plt.figure()
-        ax = fig.add_subplot(1, 1, 1)
         ax.plot(x_stage, y_meas, label="Measured", linestyle="dotted")
         ax.set_xlabel("Wire Position (stage, µm)")
         units = "% Loss" if detector == "TMITLOSS" else "Counts"
@@ -378,12 +420,9 @@ class WireScanView:
         def beam_to_stage(x):
             return x / scale
 
-        x_beam_fit = np.asarray(
-            data.fit_result[profile].detectors[detector].positions
-        )
-        y_fit = np.asarray(
-            data.fit_result[profile].detectors[detector].curve
-        )
+        fit = fit_detectors[detector]
+        x_beam_fit = np.asarray(fit.positions)
+        y_fit = np.asarray(fit.curve)
         ax.plot(
             beam_to_stage(x_beam_fit),
             y_fit,
@@ -397,14 +436,13 @@ class WireScanView:
         )
         secax.set_xlabel("Wire Position (beam, µm)")
 
-        ax.set_title(f"{wire} {profile.upper()} Profile for {detector}")
+        ax.set_title(title)
 
-        fp = data.fit_result[profile].detectors[detector]
         params_text = (
-            f"Mean: {fp.mean:.1f} um\n"
-            f"Sigma: {fp.sigma:.1f} um\n"
-            f"Amp: {fp.amplitude:.1f} {units}\n"
-            f"Offset: {fp.offset:.1f} {units}"
+            f"Mean: {fit.mean:.1f} um\n"
+            f"Sigma: {fit.sigma:.1f} um\n"
+            f"Amp: {fit.amplitude:.1f} {units}\n"
+            f"Offset: {fit.offset:.1f} {units}"
         )
         ax.text(
             0.95,
