@@ -152,7 +152,8 @@ class WireScanSuiteGUI(Display):
     def init_ui(self):
         self.ControlsLayout.insertWidget(0, self.nav)
         self.ControlsLayout.insertWidget(1, self.measurement)
-        self.measurement.wireChanged.emit(self.measurement.wire)
+        self.measurement.set_beampath(self.nav.beampath)
+        self.measurement.update_area(self.nav.area)
 
         self.ui.verticalLayout_4.setStretch(0, 0)
         self.ui.verticalLayout_4.setStretch(1, 1)

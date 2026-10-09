@@ -105,7 +105,8 @@ class MeasurementWidget(QGroupBox):
         self.wireChanged.connect(self.update_bpms)
         self.wireChanged.connect(self._apply_config)
 
-        self.update_area("HTR")
+        # Defer initial population — ws_gui.init_ui() pushes the real area
+        # after all signal connections are established.
 
     def update_area(self, area: str):
         """Call this from NavigationWidget when area changes."""
