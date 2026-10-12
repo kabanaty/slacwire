@@ -1,10 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
+from types import SimpleNamespace
 
-from slac_measurements.wires.analysis.results import FitResult
-
-_EMPTY_FIT = FitResult(detectors={})
+_EMPTY_FIT = SimpleNamespace(detectors={})
 
 
 class WireScanView:
