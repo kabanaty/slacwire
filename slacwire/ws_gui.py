@@ -1,3 +1,4 @@
+import argparse
 import logging
 import traceback
 from datetime import datetime
@@ -9,7 +10,7 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from qtpy.QtWidgets import QFileDialog, QMessageBox, QVBoxLayout, QWidget
 
 from slac_devices.reader import create_wire
-from slacwire._constants import _BASE_DIR
+from slacwire._constants import VALID_BEAMPATHS, _BASE_DIR
 from slacwire.widgets.measurement import MeasurementWidget, extract_measurement_data
 from slacwire.widgets.navigation import NavigationWidget
 from slacwire.widgets.plots import PlotWidget
@@ -127,6 +128,83 @@ class WireScanSuiteGUI(Display):
         )
 
         self.init_ui()
+        self._apply_cli_args(args)
+
+    @staticmethod
+    def _parse_args(args):
+        if not args:
+            return argparse.Namespace(
+                beampath=None, area=None, wire=None, detector=None,
+            )
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument("--beampath", choices=VALID_BEAMPATHS, default=None)
+        parser.add_argument("--area", default=None)
+        parser.add_argument("--wire", default=None)
+        parser.add_argument("--detector", default=None)
+        parsed, _ = parser.parse_known_args(args)
+        return parsed
+
+    def _resolve_wire_location(self, wire):
+        for beampath, areas in self.nav.data.items():
+            for area, wires in areas.items():
+                if wire in wires:
+                    return beampath, area
+        return None, None
+
+    def _resolve_area_location(self, area):
+        for beampath, areas in self.nav.data.items():
+            if area in areas:
+                return beampath
+        return None
+
+    def _apply_cli_args(self, args):
+        parsed = self._parse_args(args)
+        if parsed.beampath is None and parsed.area is None \
+                and parsed.wire is None and parsed.detector is None:
+            return
+
+        log = logging.getLogger("wire_scan_logger")
+
+        if parsed.wire is not None and parsed.beampath is None:
+            resolved_bp, resolved_area = self._resolve_wire_location(parsed.wire)
+            if resolved_bp is None:
+                log.warning("Wire '%s' not found in any beampath/area", parsed.wire)
+                return
+            parsed.beampath = resolved_bp
+            if parsed.area is None:
+                parsed.area = resolved_area
+        elif parsed.area is not None and parsed.beampath is None:
+            resolved_bp = self._resolve_area_location(parsed.area)
+            if resolved_bp is None:
+                log.warning("Area '%s' not found in any beampath", parsed.area)
+                return
+            parsed.beampath = resolved_bp
+
+        if parsed.beampath is not None:
+            self.nav.beampath_combo.setCurrentText(parsed.beampath)
+            if self.nav.beampath != parsed.beampath:
+                log.warning("Beampath '%s' not available", parsed.beampath)
+                return
+
+        if parsed.area is not None:
+            self.nav.area_combo.setCurrentText(parsed.area)
+            if self.nav.area != parsed.area:
+                log.warning("Area '%s' not available for beampath '%s'",
+                            parsed.area, self.nav.beampath)
+                return
+
+        if parsed.wire is not None:
+            self.measurement.wire_combo.setCurrentText(parsed.wire)
+            if self.measurement.wire != parsed.wire:
+                log.warning("Wire '%s' not available in area '%s'",
+                            parsed.wire, self.nav.area)
+                return
+
+        if parsed.detector is not None:
+            self.measurement.detector_combo.setCurrentText(parsed.detector)
+            if self.measurement.detector != parsed.detector:
+                log.warning("Detector '%s' not available for wire '%s'",
+                            parsed.detector, self.measurement.wire)
 
     def _load_yaml(self):
         yaml_path = self.base_path / "wire_scan_gui.yaml"
