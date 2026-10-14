@@ -127,6 +127,7 @@ class WireScanSuiteGUI(Display):
             self._on_fit_method_changed
         )
 
+        self._auto_close = False
         self.init_ui()
         self._apply_cli_args(args)
 
@@ -141,6 +142,12 @@ class WireScanSuiteGUI(Display):
         parser.add_argument("--area", default=None)
         parser.add_argument("--wire", default=None)
         parser.add_argument("--detector", default=None)
+        parser.add_argument("--auto-start", action="store_true", default=False,
+                            dest="auto_start",
+                            help="Automatically start a scan after the GUI opens")
+        parser.add_argument("--auto-close", action="store_true", default=False,
+                            dest="auto_close",
+                            help="Close the GUI after the scan completes")
         parsed, _ = parser.parse_known_args(args)
         return parsed
 
@@ -159,8 +166,11 @@ class WireScanSuiteGUI(Display):
 
     def _apply_cli_args(self, args):
         parsed = self._parse_args(args)
-        if parsed.beampath is None and parsed.area is None \
-                and parsed.wire is None and parsed.detector is None:
+
+        has_nav_args = (parsed.beampath is not None or parsed.area is not None
+                        or parsed.wire is not None or parsed.detector is not None)
+
+        if not has_nav_args and not parsed.auto_start:
             return
 
         log = logging.getLogger("wire_scan_logger")
@@ -205,6 +215,13 @@ class WireScanSuiteGUI(Display):
             if self.measurement.detector != parsed.detector:
                 log.warning("Detector '%s' not available for wire '%s'",
                             parsed.detector, self.measurement.wire)
+
+        if parsed.auto_close:
+            self._auto_close = True
+
+        if parsed.auto_start:
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(500, self.start_scan_callback)
 
     def _load_yaml(self):
         yaml_path = self.base_path / "wire_scan_gui.yaml"
@@ -411,6 +428,10 @@ class WireScanSuiteGUI(Display):
             entry.get("timestamp"),
         )
         self.dataChanged.emit()
+
+        if self._auto_close:
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(2000, self.close)
 
     def on_scan_failure(self, wire_identifier: str, message: str, tb: str):
         self.ui.startButton.setEnabled(False)
