@@ -428,11 +428,16 @@ class WireScanSuiteGUI(Display):
             method,
             entry.get("timestamp"),
         )
+
+        h5_path = entry.get("filepath")
+        if h5_path:
+            print(f"H5_PATH:{h5_path}", flush=True)
+
         self.dataChanged.emit()
 
         if self._auto_close:
-            from PyQt5.QtCore import QTimer
-            QTimer.singleShot(2000, self.close)
+            import os
+            os._exit(0)
 
     def on_scan_failure(self, wire_identifier: str, message: str, tb: str):
         self.ui.startButton.setEnabled(False)
