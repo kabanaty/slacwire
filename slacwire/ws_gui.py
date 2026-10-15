@@ -176,14 +176,14 @@ class WireScanSuiteGUI(Display):
 
         log = logging.getLogger("wire_scan_logger")
 
-        if parsed.wire is not None and parsed.beampath is None:
+        if parsed.wire is not None and parsed.area is None:
             resolved_bp, resolved_area = self._resolve_wire_location(parsed.wire)
             if resolved_bp is None:
                 log.warning("Wire '%s' not found in any beampath/area", parsed.wire)
                 return
-            parsed.beampath = resolved_bp
-            if parsed.area is None:
-                parsed.area = resolved_area
+            if parsed.beampath is None:
+                parsed.beampath = resolved_bp
+            parsed.area = resolved_area
         elif parsed.area is not None and parsed.beampath is None:
             resolved_bp = self._resolve_area_location(parsed.area)
             if resolved_bp is None:
