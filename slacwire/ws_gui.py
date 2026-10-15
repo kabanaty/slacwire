@@ -154,7 +154,8 @@ class WireScanSuiteGUI(Display):
     def _resolve_wire_location(self, wire):
         for beampath, areas in self.nav.data.items():
             for area, wires in areas.items():
-                if wire in wires:
+                wire_names = [w.split(":")[0] for w in wires]
+                if wire in wires or wire in wire_names:
                     return beampath, area
         return None, None
 
