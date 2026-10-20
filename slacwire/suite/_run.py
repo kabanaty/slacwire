@@ -164,6 +164,8 @@ class RunMixin:
             scan_mode=scan_mode,
             rms_detector=rms_detector,
             jitter_correction=jitter_correction,
+            charge_normalization=charge_normalization,
+            charge_toroid=charge_toroid,
         )
 
     def _run_device_scan(
@@ -199,6 +201,7 @@ class RunMixin:
             if self.save:
                 path = self.outdir / f"{file_prefix}_{device.name}_{run_stamp}.h5"
                 data.save_to_h5(path)
+                print(f"H5_PATH:{path}")
 
             plot_paths = []
             if self.save_plots or self.show:

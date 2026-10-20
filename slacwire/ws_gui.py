@@ -1,3 +1,4 @@
+import argparse
 import logging
 import traceback
 from datetime import datetime
@@ -9,7 +10,7 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from qtpy.QtWidgets import QFileDialog, QMessageBox, QVBoxLayout, QWidget
 
 from slac_devices.reader import create_wire
-from slacwire._constants import _BASE_DIR
+from slacwire._constants import VALID_BEAMPATHS, _BASE_DIR
 from slacwire.widgets.measurement import MeasurementWidget, extract_measurement_data
 from slacwire.widgets.navigation import NavigationWidget
 from slacwire.widgets.plots import PlotWidget
@@ -20,6 +21,7 @@ from slacwire.suite import WireScanSuite
 class WireScanSuiteThread(QThread):
     scan_complete = pyqtSignal(str, str, object, dict)
     scan_failed = pyqtSignal(str, str, str)
+    scan_aborted = pyqtSignal(str)
 
     def __init__(
         self,
@@ -80,9 +82,16 @@ class WireScanSuiteThread(QThread):
             if entry is None:
                 entry = {"wire": wire_name, "timestamp": datetime.now().isoformat()}
 
+            if self.isInterruptionRequested():
+                self.scan_aborted.emit(wire_name)
+                return
+
             method = entry.get("method", "unknown")
             self.scan_complete.emit(wire_name, method, data, entry)
         except Exception as exc:
+            if self.isInterruptionRequested():
+                self.scan_aborted.emit(self.wire_identifier.split(":")[0])
+                return
             tb = traceback.format_exc()
             self.scan_failed.emit(self.wire_identifier, str(exc), tb)
 
@@ -118,6 +127,9 @@ class WireScanSuiteGUI(Display):
         self.measurement.jitter_checkbox.stateChanged.connect(
             self._on_jitter_toggled
         )
+        self.measurement.charge_checkbox.stateChanged.connect(
+            self._on_charge_toggled
+        )
         self.dataChanged.connect(self.update_plots)
         self.plots.profile_control.profileChanged.connect(
             self.update_profile_plot
@@ -126,7 +138,111 @@ class WireScanSuiteGUI(Display):
             self._on_fit_method_changed
         )
 
+        self._auto_close = False
+        self._remote = False
+        self._stdin_reader = None
         self.init_ui()
+        self._apply_cli_args(args)
+
+    @staticmethod
+    def _parse_args(args):
+        if not args:
+            return argparse.Namespace(
+                beampath=None, area=None, wire=None, detector=None,
+                auto_start=False, auto_close=False, remote=False,
+            )
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument("--beampath", choices=VALID_BEAMPATHS, default=None)
+        parser.add_argument("--area", default=None)
+        parser.add_argument("--wire", default=None)
+        parser.add_argument("--detector", default=None)
+        parser.add_argument("--auto-start", action="store_true", default=False,
+                            dest="auto_start",
+                            help="Automatically start a scan after the GUI opens")
+        parser.add_argument("--auto-close", action="store_true", default=False,
+                            dest="auto_close",
+                            help="Close the GUI after the scan completes")
+        parser.add_argument("--remote", action="store_true", default=False,
+                            help="Enable stdin/stdout remote control mode")
+        parsed, _ = parser.parse_known_args(args)
+        return parsed
+
+    def _resolve_wire_location(self, wire):
+        for beampath, areas in self.nav.data.items():
+            for area, wires in areas.items():
+                wire_names = [w.split(":")[0] for w in wires]
+                if wire in wires or wire in wire_names:
+                    return beampath, area
+        return None, None
+
+    def _resolve_area_location(self, area):
+        for beampath, areas in self.nav.data.items():
+            if area in areas:
+                return beampath
+        return None
+
+    def _apply_cli_args(self, args):
+        parsed = self._parse_args(args)
+
+        has_nav_args = (parsed.beampath is not None or parsed.area is not None
+                        or parsed.wire is not None or parsed.detector is not None)
+
+        if not has_nav_args and not parsed.auto_start and not parsed.remote:
+            return
+
+        log = logging.getLogger("wire_scan_logger")
+
+        if parsed.wire is not None and parsed.area is None:
+            resolved_bp, resolved_area = self._resolve_wire_location(parsed.wire)
+            if resolved_bp is None:
+                log.warning("Wire '%s' not found in any beampath/area", parsed.wire)
+                return
+            if parsed.beampath is None:
+                parsed.beampath = resolved_bp
+            parsed.area = resolved_area
+        elif parsed.area is not None and parsed.beampath is None:
+            resolved_bp = self._resolve_area_location(parsed.area)
+            if resolved_bp is None:
+                log.warning("Area '%s' not found in any beampath", parsed.area)
+                return
+            parsed.beampath = resolved_bp
+
+        if parsed.beampath is not None:
+            self.nav.beampath_combo.setCurrentText(parsed.beampath)
+            if self.nav.beampath != parsed.beampath:
+                log.warning("Beampath '%s' not available", parsed.beampath)
+                return
+
+        if parsed.area is not None:
+            self.nav.area_combo.setCurrentText(parsed.area)
+            if self.nav.area != parsed.area:
+                log.warning("Area '%s' not available for beampath '%s'",
+                            parsed.area, self.nav.beampath)
+                return
+
+        if parsed.wire is not None:
+            self.measurement.wire_combo.setCurrentText(parsed.wire)
+            if self.measurement.wire != parsed.wire:
+                log.warning("Wire '%s' not available in area '%s'",
+                            parsed.wire, self.nav.area)
+                return
+
+        if parsed.detector is not None:
+            self.measurement.detector_combo.setCurrentText(parsed.detector)
+            if self.measurement.detector != parsed.detector:
+                log.warning("Detector '%s' not available for wire '%s'",
+                            parsed.detector, self.measurement.wire)
+
+        if parsed.auto_close and not parsed.remote:
+            self._auto_close = True
+
+        if parsed.remote:
+            self._remote = True
+            self._start_remote_listener()
+
+        if parsed.auto_start:
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(500, self.start_scan_callback)
 
     def _load_yaml(self):
         yaml_path = self.base_path / "wire_scan_gui.yaml"
@@ -192,9 +308,11 @@ class WireScanSuiteGUI(Display):
         self.ui.ParametersGroupBox.setToolTip(
             "Live EPICS readbacks for the selected wire scanner"
         )
+        self.ui.abortButton.clicked.connect(self.abort_scan_callback)
         self.ui.abortButton.setToolTip(
             "Stop the current wire scan in progress"
         )
+        self.ui.abortButton.setEnabled(False)
 
         self.ui.statusUpdate.setReadOnly(True)
         self.ui.statusUpdate.setToolTip("Scan activity log for this session")
@@ -240,6 +358,22 @@ class WireScanSuiteGUI(Display):
 
         jitter_on = state != 0
         new_data = data.reanalyze(jitter_correction=jitter_on)
+
+        if wire in self.suite.results and self.suite.results[wire]:
+            self.suite.results[wire][-1] = new_data
+        elif wire in self.loaded_results:
+            self.loaded_results[wire] = new_data
+
+        self.dataChanged.emit()
+
+    def _on_charge_toggled(self, state: int):
+        wire = self.measurement.wire
+        data = self._latest_result_for_wire(wire)
+        if data is None or not hasattr(data, "reanalyze"):
+            return
+
+        charge_on = state != 0
+        new_data = data.reanalyze(charge_normalization=charge_on)
 
         if wire in self.suite.results and self.suite.results[wire]:
             self.suite.results[wire][-1] = new_data
@@ -299,6 +433,7 @@ class WireScanSuiteGUI(Display):
     def start_scan_callback(self):
         wire_identifier = self._selected_wire_identifier()
         self.ui.startButton.setEnabled(False)
+        self.ui.abortButton.setEnabled(True)
 
         self.suite.beampath = self.nav.beampath
         if self.measurement.detector:
@@ -317,10 +452,31 @@ class WireScanSuiteGUI(Display):
         )
         self.thread.scan_complete.connect(self.on_scan_complete)
         self.thread.scan_failed.connect(self.on_scan_failure)
+        self.thread.scan_aborted.connect(self.on_scan_aborted)
         self.thread.start()
+
+    def abort_scan_callback(self):
+        wire = self.measurement.active_wire
+        if wire is not None:
+            wire.abort_scan()
+            wire.retract()
+        if hasattr(self, "thread") and self.thread.isRunning():
+            self.thread.requestInterruption()
+        self.ui.abortButton.setEnabled(False)
+        self.logger.info("Abort requested for %s", self.measurement.wire)
+
+    def on_scan_aborted(self, wire_name: str):
+        self.ui.startButton.setEnabled(True)
+        self.ui.abortButton.setEnabled(False)
+        self.logger.info("Scan aborted for %s", wire_name)
+
+        if self._remote:
+            print(f"ABORTED:{wire_name}", flush=True)
+            print("READY", flush=True)
 
     def on_scan_complete(self, wire_name: str, method: str, data, entry: dict):
         self.ui.startButton.setEnabled(True)
+        self.ui.abortButton.setEnabled(False)
         self.current_runs[wire_name] = {
             "method": method,
             "run_id": entry.get("run_id"),
@@ -332,10 +488,22 @@ class WireScanSuiteGUI(Display):
             method,
             entry.get("timestamp"),
         )
+
+        h5_path = entry.get("filepath")
+        if h5_path:
+            print(f"H5_PATH:{h5_path}", flush=True)
+
         self.dataChanged.emit()
+
+        if self._remote:
+            print("READY", flush=True)
+        elif self._auto_close:
+            import os
+            os._exit(0)
 
     def on_scan_failure(self, wire_identifier: str, message: str, tb: str):
         self.ui.startButton.setEnabled(False)
+        self.ui.abortButton.setEnabled(False)
         wire_name = wire_identifier.split(":")[0]
         self.suite.registry.log(
             method="unknown",
@@ -350,6 +518,13 @@ class WireScanSuiteGUI(Display):
             message,
         )
 
+        if self._remote:
+            safe_msg = message.replace("\n", " ")
+            print(f"ERROR:{safe_msg}", flush=True)
+            print("READY", flush=True)
+            self.ui.startButton.setEnabled(True)
+            return
+
         dialog = QMessageBox(self)
         dialog.setIcon(QMessageBox.Critical)
         dialog.setWindowTitle("Scan Failed")
@@ -360,6 +535,76 @@ class WireScanSuiteGUI(Display):
         dialog.setStandardButtons(QMessageBox.Ok)
         dialog.exec_()
         self.ui.startButton.setEnabled(True)
+
+    # ---- Remote control (stdin/stdout protocol) ----
+
+    def _start_remote_listener(self):
+        from slacwire.remote import StdinCommandReader
+
+        self._stdin_reader = StdinCommandReader()
+        self._stdin_reader.commandReceived.connect(self._handle_remote_command)
+        self._stdin_reader.start()
+        print("READY", flush=True)
+
+    def _handle_remote_command(self, line: str):
+        parts = line.split()
+        if not parts:
+            return
+        cmd = parts[0].upper()
+
+        if cmd == "SCAN":
+            if not self.ui.startButton.isEnabled():
+                print("BUSY", flush=True)
+                return
+            if len(parts) < 2:
+                print("ERROR:SCAN requires a wire name", flush=True)
+                return
+            wire = parts[1]
+            detector = parts[2] if len(parts) > 2 else None
+            if not self._navigate_and_select(wire, detector):
+                return
+            print(f"SCANNING:{wire}", flush=True)
+            self.start_scan_callback()
+
+        elif cmd == "SELECT":
+            if len(parts) < 2:
+                print("ERROR:SELECT requires a wire name", flush=True)
+                return
+            wire = parts[1]
+            detector = parts[2] if len(parts) > 2 else None
+            if self._navigate_and_select(wire, detector):
+                print(f"SELECTED:{wire}", flush=True)
+
+        elif cmd == "STATUS":
+            wire = self.measurement.wire or "none"
+            scanning = not self.ui.startButton.isEnabled()
+            state = "scanning" if scanning else "idle"
+            print(f"STATUS:{wire}:{state}", flush=True)
+
+        elif cmd == "QUIT":
+            from qtpy.QtWidgets import QApplication
+            QApplication.quit()
+
+        else:
+            print(f"ERROR:Unknown command '{cmd}'", flush=True)
+
+    def _navigate_and_select(self, wire: str, detector: str = None) -> bool:
+        beampath, area = self._resolve_wire_location(wire)
+        if beampath is None:
+            print(f"ERROR:Wire '{wire}' not found", flush=True)
+            return False
+
+        self.nav.beampath_combo.setCurrentText(beampath)
+        self.nav.area_combo.setCurrentText(area)
+        self.measurement.wire_combo.setCurrentText(wire)
+
+        if detector is not None:
+            self.measurement.detector_combo.setCurrentText(detector)
+            if self.measurement.detector != detector:
+                print(f"ERROR:Detector '{detector}' not available for {wire}", flush=True)
+                return False
+
+        return True
 
     def _latest_result_for_wire(self, wire_name: str):
         # Check if we have results for this wire in the suite
