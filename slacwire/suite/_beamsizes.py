@@ -29,3 +29,30 @@ class BeamsizesMixin:
             sizes.append([sigma_x, sigma_y])
 
         return np.array(sizes)
+
+    def get_beamsize_errors(self, **run_kwargs) -> np.ndarray:
+        """Return beam size uncertainties for all configured wires.
+
+        Same contract as ``get_beamsizes`` but returns the 1-sigma
+        uncertainties on each beam size.
+
+        Returns:
+            ndarray of shape (n_wires, 2) with columns [sigma_x_err, sigma_y_err].
+            Missing values are NaN.
+        """
+        missing = [w for w in self.wires if not self.results.get(w)]
+        if missing:
+            self.run_all(**run_kwargs)
+
+        errors = []
+        for wire in self.wires:
+            result = self.latest_run(wire)
+            rms_err = getattr(result, "rms_sizes_err", None)
+            if rms_err is not None:
+                ex = rms_err[0] if rms_err[0] is not None else np.nan
+                ey = rms_err[1] if rms_err[1] is not None else np.nan
+            else:
+                ex, ey = np.nan, np.nan
+            errors.append([ex, ey])
+
+        return np.array(errors)

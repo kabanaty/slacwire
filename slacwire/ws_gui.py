@@ -119,6 +119,9 @@ class WireScanSuiteGUI(Display):
         self.measurement.jitter_checkbox.stateChanged.connect(
             self._on_jitter_toggled
         )
+        self.measurement.charge_checkbox.stateChanged.connect(
+            self._on_charge_toggled
+        )
         self.dataChanged.connect(self.update_plots)
         self.plots.profile_control.profileChanged.connect(
             self.update_profile_plot
@@ -345,6 +348,22 @@ class WireScanSuiteGUI(Display):
 
         jitter_on = state != 0
         new_data = data.reanalyze(jitter_correction=jitter_on)
+
+        if wire in self.suite.results and self.suite.results[wire]:
+            self.suite.results[wire][-1] = new_data
+        elif wire in self.loaded_results:
+            self.loaded_results[wire] = new_data
+
+        self.dataChanged.emit()
+
+    def _on_charge_toggled(self, state: int):
+        wire = self.measurement.wire
+        data = self._latest_result_for_wire(wire)
+        if data is None or not hasattr(data, "reanalyze"):
+            return
+
+        charge_on = state != 0
+        new_data = data.reanalyze(charge_normalization=charge_on)
 
         if wire in self.suite.results and self.suite.results[wire]:
             self.suite.results[wire][-1] = new_data
