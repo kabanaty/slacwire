@@ -21,6 +21,7 @@ from slacwire.suite import WireScanSuite
 class WireScanSuiteThread(QThread):
     scan_complete = pyqtSignal(str, str, object, dict)
     scan_failed = pyqtSignal(str, str, str)
+    scan_aborted = pyqtSignal(str)
 
     def __init__(
         self,
@@ -81,9 +82,16 @@ class WireScanSuiteThread(QThread):
             if entry is None:
                 entry = {"wire": wire_name, "timestamp": datetime.now().isoformat()}
 
+            if self.isInterruptionRequested():
+                self.scan_aborted.emit(wire_name)
+                return
+
             method = entry.get("method", "unknown")
             self.scan_complete.emit(wire_name, method, data, entry)
         except Exception as exc:
+            if self.isInterruptionRequested():
+                self.scan_aborted.emit(self.wire_identifier.split(":")[0])
+                return
             tb = traceback.format_exc()
             self.scan_failed.emit(self.wire_identifier, str(exc), tb)
 
@@ -300,9 +308,11 @@ class WireScanSuiteGUI(Display):
         self.ui.ParametersGroupBox.setToolTip(
             "Live EPICS readbacks for the selected wire scanner"
         )
+        self.ui.abortButton.clicked.connect(self.abort_scan_callback)
         self.ui.abortButton.setToolTip(
             "Stop the current wire scan in progress"
         )
+        self.ui.abortButton.setEnabled(False)
 
         self.ui.statusUpdate.setReadOnly(True)
         self.ui.statusUpdate.setToolTip("Scan activity log for this session")
@@ -423,6 +433,7 @@ class WireScanSuiteGUI(Display):
     def start_scan_callback(self):
         wire_identifier = self._selected_wire_identifier()
         self.ui.startButton.setEnabled(False)
+        self.ui.abortButton.setEnabled(True)
 
         self.suite.beampath = self.nav.beampath
         if self.measurement.detector:
@@ -441,10 +452,31 @@ class WireScanSuiteGUI(Display):
         )
         self.thread.scan_complete.connect(self.on_scan_complete)
         self.thread.scan_failed.connect(self.on_scan_failure)
+        self.thread.scan_aborted.connect(self.on_scan_aborted)
         self.thread.start()
+
+    def abort_scan_callback(self):
+        wire = self.measurement.active_wire
+        if wire is not None:
+            wire.abort_scan()
+            wire.retract()
+        if hasattr(self, "thread") and self.thread.isRunning():
+            self.thread.requestInterruption()
+        self.ui.abortButton.setEnabled(False)
+        self.logger.info("Abort requested for %s", self.measurement.wire)
+
+    def on_scan_aborted(self, wire_name: str):
+        self.ui.startButton.setEnabled(True)
+        self.ui.abortButton.setEnabled(False)
+        self.logger.info("Scan aborted for %s", wire_name)
+
+        if self._remote:
+            print(f"ABORTED:{wire_name}", flush=True)
+            print("READY", flush=True)
 
     def on_scan_complete(self, wire_name: str, method: str, data, entry: dict):
         self.ui.startButton.setEnabled(True)
+        self.ui.abortButton.setEnabled(False)
         self.current_runs[wire_name] = {
             "method": method,
             "run_id": entry.get("run_id"),
@@ -471,6 +503,7 @@ class WireScanSuiteGUI(Display):
 
     def on_scan_failure(self, wire_identifier: str, message: str, tb: str):
         self.ui.startButton.setEnabled(False)
+        self.ui.abortButton.setEnabled(False)
         wire_name = wire_identifier.split(":")[0]
         self.suite.registry.log(
             method="unknown",
