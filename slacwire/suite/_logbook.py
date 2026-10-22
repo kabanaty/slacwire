@@ -42,15 +42,9 @@ class LogbookMixin:
             attachment,
         )
 
-        # submit_entry returns elog_client.post's (status_code, payload) on
-        # success, or a status string when the request raised.
-        if isinstance(result, tuple):
-            status_code, payload = result
-            if status_code not in (200, 201):
-                msg = f"Logbook post failed ({status_code}): {payload}"
-                logger.error(msg)
-                raise RuntimeError(msg)
-        elif isinstance(result, str) and "failed" in result.lower():
+        # submit_entry swallows HTTPError from elog_client.post and returns
+        # a status string instead; other RequestExceptions propagate.
+        if isinstance(result, str) and result.startswith("Entry submission failed"):
             logger.error(result)
             raise RuntimeError(result)
 
