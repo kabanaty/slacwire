@@ -33,14 +33,26 @@ class LogbookMixin:
         username = getpass.getuser()
 
         physicselog = importlib.import_module("physicselog")
-        physicselog.submit_entry(
-            logbook=logbook,
-            username=username,
-            title=title,
-            entry_text=body or None,
-            attachment=attachment,
-            thumbnail=attachment,
+        result = physicselog.submit_entry(
+            logbook,
+            username,
+            title,
+            body,
+            attachment,
+            attachment,
         )
+
+        # submit_entry returns elog_client.post's (status_code, payload) on
+        # success, or a status string when the request raised.
+        if isinstance(result, tuple):
+            status_code, payload = result
+            if status_code not in (200, 201):
+                msg = f"Logbook post failed ({status_code}): {payload}"
+                logger.error(msg)
+                raise RuntimeError(msg)
+        elif isinstance(result, str) and "failed" in result.lower():
+            logger.error(result)
+            raise RuntimeError(result)
 
         logbook_label = "LCLS-II" if logbook == "lcls2" else "LCLS"
         logger.info("Posted to %s logbook: %s", logbook_label, title)
