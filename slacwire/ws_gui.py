@@ -575,6 +575,25 @@ class WireScanSuiteGUI(Display):
             if self._navigate_and_select(wire, detector):
                 print(f"SELECTED:{wire}", flush=True)
 
+        elif cmd == "GET":
+            if not self.ui.startButton.isEnabled():
+                print("BUSY", flush=True)
+                return
+            if len(parts) < 2:
+                print("ERROR:GET requires a wire name", flush=True)
+                return
+            wire = parts[1]
+            data = self._latest_result_for_wire(wire)
+            if data is None:
+                print(f"ERROR:No data available for {wire}", flush=True)
+            else:
+                path = self._save_data_to_file(data, f"Query_{wire}")
+                if path:
+                    print(f"H5_PATH:{path}", flush=True)
+                else:
+                    print(f"ERROR:Failed to save data for {wire}", flush=True)
+            print("READY", flush=True)
+
         elif cmd == "STATUS":
             wire = self.measurement.wire or "none"
             scanning = not self.ui.startButton.isEnabled()
