@@ -7,10 +7,11 @@ from pathlib import Path
 import yaml
 from pydm import Display
 from PyQt5.QtCore import QThread, pyqtSignal
-from qtpy.QtWidgets import QFileDialog, QMessageBox, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 
 from slac_devices.reader import create_wire
 from slacwire._constants import VALID_BEAMPATHS, _BASE_DIR
+from slacwire.widgets.error_dialog import ErrorDialog
 from slacwire.widgets.measurement import MeasurementWidget, extract_measurement_data
 from slacwire.widgets.navigation import NavigationWidget
 from slacwire.widgets.plots import PlotWidget
@@ -525,14 +526,13 @@ class WireScanSuiteGUI(Display):
             self.ui.startButton.setEnabled(True)
             return
 
-        dialog = QMessageBox(self)
-        dialog.setIcon(QMessageBox.Critical)
-        dialog.setWindowTitle("Scan Failed")
-        dialog.setText(f"Scan failed for {wire_identifier}")
-        dialog.setInformativeText(message)
-        if tb:
-            dialog.setDetailedText(tb)
-        dialog.setStandardButtons(QMessageBox.Ok)
+        dialog = ErrorDialog(
+            title="Scan Failed",
+            text=f"Scan failed for {wire_identifier}",
+            message=message,
+            tb=tb,
+            parent=self,
+        )
         dialog.exec_()
         self.ui.startButton.setEnabled(True)
 
