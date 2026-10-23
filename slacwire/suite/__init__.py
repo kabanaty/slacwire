@@ -13,6 +13,7 @@ This sub-package composes WireScanSuite from separate concern modules:
 - _compare: multi-detector overlay plotting for completed scans
 - _logbook: post scan results to the SLAC physics logbook
 - _beamsizes: beam size extraction for multi-device emittance
+- _preflight: pre-scan checks (wire speed limits)
 """
 
 from __future__ import annotations
@@ -35,12 +36,13 @@ from ._jitter_compare import JitterCompareMixin
 from ._logbook import LogbookMixin
 from ._loader import LoaderMixin
 from ._motion import MotionTestMixin
+from ._preflight import PreflightMixin
 from ._results import ResultsMixin
 from ._run import RunMixin
 
 
 @dataclass
-class WireScanSuite(LogbookMixin, JitterCompareMixin, CompareMixin, DiagnosticsMixin, MotionTestMixin, CollectMixin, RunMixin, LoaderMixin, BeamsizesMixin, ResultsMixin, WireScanSuiteBase):
+class WireScanSuite(LogbookMixin, JitterCompareMixin, CompareMixin, DiagnosticsMixin, MotionTestMixin, CollectMixin, RunMixin, PreflightMixin, LoaderMixin, BeamsizesMixin, ResultsMixin, WireScanSuiteBase):
     """High-level orchestration layer for wire scanner beam profile measurements.
 
     Transforms low-level EPICS device controls (wire positioning, data collection,

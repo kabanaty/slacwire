@@ -120,6 +120,8 @@ class RunMixin:
             raise ValueError(
                 f"Invalid scan_mode '{scan_mode}'. Use 'otf' or 'step'."
             )
+        if mode == "otf":
+            self._check_scan_speed(device)
 
         config = get_wire_config(wire_name, self.beampath)
         resolved_jitter = (

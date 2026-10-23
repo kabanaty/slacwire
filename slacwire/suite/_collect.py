@@ -27,6 +27,8 @@ class CollectMixin:
             raise ValueError(
                 f"Invalid scan_mode '{scan_mode}'. Use 'otf' or 'step'."
             )
+        if mode == "otf":
+            self._check_scan_speed(device)
 
         self._run_device_scan(
             device=device,

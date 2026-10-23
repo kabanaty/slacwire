@@ -66,6 +66,17 @@ class _FakeDevice:
     def active_profiles(self):
         return self._active_profiles
 
+    def invalid_planes(self):
+        return []
+
+
+def _invalid_status(plane="x"):
+    return SimpleNamespace(
+        plane=plane,
+        summary="Too fast: range too large",
+        advice="Narrow the range to less than 800 um.",
+    )
+
 
 class TestWireScanSuite(unittest.TestCase):
     def test_dated_output_dir_creates_ymd_path(self):
@@ -211,6 +222,33 @@ class TestWireScanSuite(unittest.TestCase):
             self.assertEqual(
                 mock_run_device_scan.call_args.kwargs["method"], "step"
             )
+
+    @patch.object(WireScanSuite, "_make_device")
+    @patch.object(WireScanSuite, "_run_device_scan")
+    def test_run_single_refuses_invalid_speed(
+        self, mock_run_device_scan, mock_make_device
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(WireScanSuite, "_build_view", return_value=MagicMock()):
+                suite = WireScanSuite(
+                    wires=[],
+                    outdir=Path(tmp),
+                    plotdir=Path(tmp) / "plots",
+                )
+
+            device = _FakeDevice()
+            device.invalid_planes = lambda: [_invalid_status("x")]
+            mock_make_device.return_value = device
+
+            with self.assertRaises(ValueError) as ctx:
+                suite.run_single("WS28144")
+            self.assertIn("WS28144 X: Too fast: range too large", str(ctx.exception))
+            self.assertIn("Narrow the range", str(ctx.exception))
+            mock_run_device_scan.assert_not_called()
+
+            # Step scans set their own speed, so the OTF speed check is skipped.
+            suite.run_single("WS28144", scan_mode="step")
+            mock_run_device_scan.assert_called_once()
 
 
 if __name__ == "__main__":
