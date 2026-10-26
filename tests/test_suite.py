@@ -73,8 +73,9 @@ class _FakeDevice:
 def _invalid_status(plane="x"):
     return SimpleNamespace(
         plane=plane,
+        valid=False,
         summary="Too fast: range too large",
-        advice="Narrow the range to less than 800 um.",
+        advice="Narrow the range to less than 800 um",
     )
 
 
@@ -242,7 +243,11 @@ class TestWireScanSuite(unittest.TestCase):
 
             with self.assertRaises(ValueError) as ctx:
                 suite.run_single("WS28144")
-            self.assertIn("WS28144 X: Too fast: range too large", str(ctx.exception))
+            self.assertIn(
+                "WS28144 X Profile too fast: range too large. "
+                "Narrow the range to less than 800 um",
+                str(ctx.exception),
+            )
             self.assertIn("Narrow the range", str(ctx.exception))
             mock_run_device_scan.assert_not_called()
 

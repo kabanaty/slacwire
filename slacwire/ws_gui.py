@@ -328,8 +328,10 @@ class WireScanSuiteGUI(Display):
         self.logger.setLevel(logging.INFO)
         attach_logger_to_widget(self.logger, self.ui.statusUpdate)
 
+        speed_header, speed_labels = build_speed_labels(self.ui.gridLayout)
         self.speed_monitor = SpeedStatusMonitor(
-            labels=build_speed_labels(self.ui.gridLayout),
+            header=speed_header,
+            labels=speed_labels,
             range_fields={
                 plane: [
                     getattr(self.ui, f"{plane}_wire_inner"),

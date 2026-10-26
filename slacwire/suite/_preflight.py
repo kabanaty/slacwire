@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import logging
 
+from slacwire.speed_status import profile_message
+
 logger = logging.getLogger("wire_scan_logger")
 
 
 def format_invalid_planes(wire_name: str, invalid_planes) -> str:
-    """One line per invalid plane: '<wire> X: <summary>. <advice>'."""
+    """One line per invalid plane, e.g. 'WS28144 X Profile too fast: ...'."""
     return "\n".join(
-        f"{wire_name} {s.plane.upper()}: {s.summary}. {s.advice}"
-        for s in invalid_planes
+        f"{wire_name} {profile_message(s.plane, s)}" for s in invalid_planes
     )
 
 

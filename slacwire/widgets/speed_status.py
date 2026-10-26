@@ -4,8 +4,9 @@ The IOC calculates each plane's scan speed from the range, beam rate and scan
 pulses. Inner and outer are separate PVs, so the speed can be briefly invalid
 while an operator is part way through editing a range. Instead of checking
 each write, this widget re-checks the current settings once a second and
-shows a short status, a tooltip with the exact fix, and a red border on the
-range fields of any active plane that is out of limits.
+shows a Speed column only while an active plane is too fast or too slow:
+alarmed planes read "Too Fast"/"Too Slow" (fix in the tooltip, red border on
+the range fields) and the other active planes read "OK".
 
 Polling runs on a worker thread because ``PV.get()`` blocks on a
 disconnected PV, which would freeze the GUI.
@@ -19,7 +20,9 @@ from qtpy.QtWidgets import QLabel
 from slacwire.speed_status import (
     PLANES,
     UNKNOWN,
+    column_visible,
     describe_plane,
+    profile_message,
     transition_level,
 )
 
@@ -52,14 +55,18 @@ class SpeedStatusMonitor(QObject):
 
     pollRequested = pyqtSignal(object)
 
-    def __init__(self, labels, range_fields, logger: logging.Logger, parent=None):
+    def __init__(
+        self, header, labels, range_fields, logger: logging.Logger, parent=None
+    ):
         """
         Args:
+            header: QLabel heading the Speed column.
             labels: {plane: QLabel} status label for each plane.
             range_fields: {plane: [QWidget, ...]} inner/outer fields per plane.
             logger: Logger shown in the GUI's activity log.
         """
         super().__init__(parent)
+        self.header = header
         self.labels = labels
         self.range_fields = range_fields
         self.logger = logger
@@ -114,11 +121,17 @@ class SpeedStatusMonitor(QObject):
         if wire is not self.wire:
             return
         statuses, active = result
+        self._set_column_visible(column_visible(statuses, active))
         for plane in PLANES:
             status = statuses.get(plane)
             is_active = plane in active
             self._update_plane(plane, status, is_active)
             self._log_transition(plane, status, is_active)
+
+    def _set_column_visible(self, visible: bool) -> None:
+        self.header.setVisible(visible)
+        for label in self.labels.values():
+            label.setVisible(visible)
 
     def _update_plane(self, plane: str, status, active: bool) -> None:
         text, style, tooltip, field_style = describe_plane(status, active)
@@ -140,19 +153,14 @@ class SpeedStatusMonitor(QObject):
         level = transition_level(previous, current)
         if level is None:
             return
-        if status is None:
-            message = f"{plane.upper()} plane speed unknown: PVs unavailable"
-        elif status.valid:
-            message = f"{plane.upper()} plane speed OK"
-        else:
-            message = f"{plane.upper()} plane: {status.summary}. {status.advice}"
-        self.logger.log(level, message)
+        self.logger.log(level, profile_message(plane, status))
 
 
 def build_speed_labels(grid_layout, column: int = 3):
-    """Add a status header and one status label per plane to the grid.
+    """Add a hidden Speed column (header + one label per plane) to the grid.
 
     Rows follow the Parameters grid: header in row 0, X/Y/U in rows 1-3.
+    Returns (header, {plane: label}).
     Object names end in ``Label`` so ``update_parameters`` does not try to
     bind them to PVs.
     """
@@ -163,10 +171,11 @@ def build_speed_labels(grid_layout, column: int = 3):
     for row, plane in enumerate(PLANES, start=1):
         label = QLabel("")
         label.setObjectName(f"{plane}_speed_statusLabel")
-        label.setWordWrap(True)
+        label.setVisible(False)
         grid_layout.addWidget(label, row, column)
         labels[plane] = label
-    return labels
+    header.setVisible(False)
+    return header, labels
 
 
 __all__ = [

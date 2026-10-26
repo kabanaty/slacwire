@@ -6,32 +6,48 @@ from slac_devices.wire import SpeedState
 
 PLANES = ("x", "y", "u")
 
+ALARM_STATES = (SpeedState.TOO_FAST, SpeedState.TOO_SLOW)
+ALARM_TEXT = {SpeedState.TOO_FAST: "Too Fast", SpeedState.TOO_SLOW: "Too Slow"}
+
 OK_STYLE = "color: darkgreen;"
-INVALID_STYLE = "color: red; font-weight: bold;"
-INACTIVE_STYLE = "color: gray;"
-UNKNOWN_STYLE = "color: darkorange;"
-INVALID_FIELD_STYLE = "border: 2px solid red;"
+ALARM_STYLE = "color: red; font-weight: bold;"
+ALARM_FIELD_STYLE = "border: 2px solid red;"
 
 UNKNOWN = "unknown"
+
+
+def in_alarm(status, active: bool) -> bool:
+    """True when an active plane's speed is too fast or too slow."""
+    return active and status is not None and status.state in ALARM_STATES
+
+
+def column_visible(statuses, active) -> bool:
+    """The Speed column is shown only while at least one plane is in alarm."""
+    return any(in_alarm(statuses.get(p), p in active) for p in PLANES)
 
 
 def describe_plane(status, active: bool):
     """Return (label text, label style, tooltip, field style) for one plane.
 
-    ``status`` is a RangeStatus, or None when the PVs could not be read.
+    Alarmed planes show "Too Fast" or "Too Slow" with the fix in the tooltip;
+    other active planes show "OK". Inactive or unreadable planes are blank.
     """
+    if in_alarm(status, active):
+        return (ALARM_TEXT[status.state], ALARM_STYLE, status.advice, ALARM_FIELD_STYLE)
+    if active and status is not None and status.valid:
+        return ("OK", OK_STYLE, "", "")
+    return ("", "", "", "")
+
+
+def profile_message(plane: str, status) -> str:
+    """One-line log message, e.g. 'X Profile too slow: range too small. Widen ...'."""
+    name = f"{plane.upper()} Profile"
     if status is None:
-        return (
-            "Speed unknown",
-            UNKNOWN_STYLE,
-            "Could not read the wire speed PVs.",
-            "",
-        )
-    if not active:
-        return ("Not used", INACTIVE_STYLE, status.advice, "")
+        return f"{name} speed unknown: PVs unavailable"
     if status.valid:
-        return (status.summary, OK_STYLE, status.advice, "")
-    return (status.summary, INVALID_STYLE, status.advice, INVALID_FIELD_STYLE)
+        return f"{name} speed OK"
+    message = f"{name} {status.summary.lower()}"
+    return f"{message}. {status.advice}" if status.advice else message
 
 
 def transition_level(previous, current):
