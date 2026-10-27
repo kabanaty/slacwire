@@ -47,7 +47,9 @@ def profile_message(plane: str, status) -> str:
     if status.valid:
         return f"{name} speed OK"
     message = f"{name} {status.summary.lower()}"
-    return f"{message}. {status.advice}" if status.advice else message
+    if not status.advice or status.advice.lower() == status.summary.lower():
+        return message
+    return f"{message}. {status.advice}"
 
 
 def transition_level(previous, current):

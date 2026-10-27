@@ -66,13 +66,13 @@ class _FakeDevice:
     def active_profiles(self):
         return self._active_profiles
 
-    def invalid_planes(self):
+    def invalid_profiles(self):
         return []
 
 
-def _invalid_status(plane="x"):
+def _invalid_status(profile="x"):
     return SimpleNamespace(
-        plane=plane,
+        profile=profile,
         valid=False,
         summary="Too fast: range too large",
         advice="Narrow the range to less than 800 um",
@@ -238,7 +238,7 @@ class TestWireScanSuite(unittest.TestCase):
                 )
 
             device = _FakeDevice()
-            device.invalid_planes = lambda: [_invalid_status("x")]
+            device.invalid_profiles = lambda: [_invalid_status("x")]
             mock_make_device.return_value = device
 
             with self.assertRaises(ValueError) as ctx:

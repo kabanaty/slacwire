@@ -467,7 +467,7 @@ class WireScanSuiteGUI(Display):
         if wire is None:
             return ""
         try:
-            invalid = wire.invalid_planes()
+            invalid = wire.invalid_profiles()
         except Exception as exc:
             return f"Could not check wire speed: {exc}"
         return format_invalid_planes(wire.name, invalid) if invalid else ""

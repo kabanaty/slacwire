@@ -10,7 +10,7 @@ logger = logging.getLogger("wire_scan_logger")
 def format_invalid_planes(wire_name: str, invalid_planes) -> str:
     """One line per invalid plane, e.g. 'WS28144 X Profile too fast: ...'."""
     return "\n".join(
-        f"{wire_name} {profile_message(s.plane, s)}" for s in invalid_planes
+        f"{wire_name} {profile_message(s.profile, s)}" for s in invalid_planes
     )
 
 
@@ -27,7 +27,7 @@ class PreflightMixin:
         Raises:
             ValueError: If any active plane has an invalid speed.
         """
-        invalid = device.invalid_planes()
+        invalid = device.invalid_profiles()
         if invalid:
             message = format_invalid_planes(device.name, invalid)
             raise ValueError(f"Scan refused, invalid wire speed:\n{message}")

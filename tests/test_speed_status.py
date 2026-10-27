@@ -14,9 +14,9 @@ from slacwire.speed_status import (
 )
 
 
-def _status(state, plane="x", summary="", advice=""):
+def _status(state, profile="x", summary="", advice=""):
     return SimpleNamespace(
-        plane=plane,
+        profile=profile,
         state=state,
         valid=state == SpeedState.OK,
         summary=summary,
@@ -76,6 +76,16 @@ class TestProfileMessage(unittest.TestCase):
         self.assertEqual(
             profile_message("x", status),
             "X Profile too slow: range too small. Widen the range to more than 2917 um",
+        )
+
+    def test_advice_matching_summary_is_not_repeated(self):
+        status = _status(
+            SpeedState.BAD_RANGE,
+            summary="Inner must be less than outer",
+            advice="Inner must be less than outer",
+        )
+        self.assertEqual(
+            profile_message("x", status), "X Profile inner must be less than outer"
         )
 
     def test_recovery_message(self):
