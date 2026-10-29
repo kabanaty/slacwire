@@ -71,11 +71,13 @@ class _FakeDevice:
 
 
 def _invalid_status(profile="x"):
+    from slac_devices.wire import SpeedState
+
     return SimpleNamespace(
         profile=profile,
+        state=SpeedState.TOO_FAST,
         valid=False,
-        summary="Too fast: range too large",
-        advice="Narrow the range to less than 800 um",
+        max_width=800.0,
     )
 
 

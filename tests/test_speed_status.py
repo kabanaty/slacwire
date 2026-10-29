@@ -1,8 +1,6 @@
 import logging
 import unittest
-from types import SimpleNamespace
-
-from slac_devices.wire import SpeedState
+from slac_devices.wire import RangeStatus, SpeedState
 
 from slacwire.speed_status import (
     ALARM_FIELD_STYLE,
@@ -10,31 +8,78 @@ from slacwire.speed_status import (
     column_visible,
     describe_plane,
     profile_message,
+    speed_advice,
+    speed_summary,
     transition_level,
 )
 
+# Representative speed for each state with a 1000 um range,
+# speed_floor 100 um/s and speed_max 1200 um/s.
+_SPEEDS = {
+    SpeedState.OK: 500.0,
+    SpeedState.TOO_FAST: 1500.0,  # max_width 800 um
+    SpeedState.TOO_SLOW: 50.0,  # min_width 2000 um
+    SpeedState.NO_BEAM: 500.0,
+    SpeedState.BAD_RANGE: 500.0,
+}
 
-def _status(state, profile="x", summary="", advice=""):
-    return SimpleNamespace(
+
+def _status(state, profile="x"):
+    return RangeStatus(
         profile=profile,
         state=state,
-        valid=state == SpeedState.OK,
-        summary=summary,
-        advice=advice,
+        speed=_SPEEDS[state],
+        speed_floor=100.0,
+        speed_max=1200.0,
+        inner=0.0,
+        outer=1000.0,
+        scan_pulses=240,
+        beam_rate=0.0 if state == SpeedState.NO_BEAM else 120.0,
     )
+
+
+class TestSpeedText(unittest.TestCase):
+    def test_summary_per_state(self):
+        expected = {
+            SpeedState.OK: "OK",
+            SpeedState.TOO_FAST: "Too fast: range too large",
+            SpeedState.TOO_SLOW: "Too slow: range too small",
+            SpeedState.NO_BEAM: "No beam rate",
+            SpeedState.BAD_RANGE: "Inner must be less than outer",
+        }
+        for state, text in expected.items():
+            self.assertEqual(speed_summary(_status(state)), text)
+
+    def test_advice_per_state(self):
+        expected = {
+            SpeedState.OK: "",
+            SpeedState.TOO_FAST: "Narrow the range to less than 800 um",
+            SpeedState.TOO_SLOW: "Widen the range to more than 2000 um",
+            SpeedState.NO_BEAM: "Wait for beam to return",
+            SpeedState.BAD_RANGE: "Inner must be less than outer",
+        }
+        for state, text in expected.items():
+            self.assertEqual(speed_advice(_status(state)), text)
+
+    def test_every_state_has_text(self):
+        for state in SpeedState:
+            self.assertTrue(speed_summary(_status(state)))
+            self.assertIsNotNone(speed_advice(_status(state)))
+
+    def test_advice_never_mentions_scan_pulses(self):
+        for state in SpeedState:
+            self.assertNotIn("pulses", speed_advice(_status(state)))
 
 
 class TestDescribePlane(unittest.TestCase):
     def test_alarm_states_are_terse(self):
-        for state, text in [
-            (SpeedState.TOO_FAST, "Too Fast"),
-            (SpeedState.TOO_SLOW, "Too Slow"),
+        for state, text, tip in [
+            (SpeedState.TOO_FAST, "Too Fast", "Narrow the range to less than 800 um"),
+            (SpeedState.TOO_SLOW, "Too Slow", "Widen the range to more than 2000 um"),
         ]:
-            label, _, tooltip, field_style = describe_plane(
-                _status(state, advice="Widen the range"), active=True
-            )
+            label, _, tooltip, field_style = describe_plane(_status(state), active=True)
             self.assertEqual(label, text)
-            self.assertEqual(tooltip, "Widen the range")
+            self.assertEqual(tooltip, tip)
             self.assertEqual(field_style, ALARM_FIELD_STYLE)
 
     def test_ok_plane_reads_ok(self):
@@ -68,22 +113,14 @@ class TestColumnVisible(unittest.TestCase):
 
 class TestProfileMessage(unittest.TestCase):
     def test_alarm_message(self):
-        status = _status(
-            SpeedState.TOO_SLOW,
-            summary="Too slow: range too small",
-            advice="Widen the range to more than 2917 um",
-        )
+        status = _status(SpeedState.TOO_SLOW)
         self.assertEqual(
             profile_message("x", status),
-            "X Profile too slow: range too small. Widen the range to more than 2917 um",
+            "X Profile too slow: range too small. Widen the range to more than 2000 um",
         )
 
     def test_advice_matching_summary_is_not_repeated(self):
-        status = _status(
-            SpeedState.BAD_RANGE,
-            summary="Inner must be less than outer",
-            advice="Inner must be less than outer",
-        )
+        status = _status(SpeedState.BAD_RANGE)
         self.assertEqual(
             profile_message("x", status), "X Profile inner must be less than outer"
         )

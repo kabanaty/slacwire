@@ -16,6 +16,39 @@ ALARM_FIELD_STYLE = "border: 2px solid red;"
 UNKNOWN = "unknown"
 
 
+def speed_summary(status) -> str:
+    """Short status text for display next to the range fields."""
+    match status.state:
+        case SpeedState.OK:
+            return "OK"
+        case SpeedState.TOO_FAST:
+            return "Too fast: range too large"
+        case SpeedState.TOO_SLOW:
+            return "Too slow: range too small"
+        case SpeedState.NO_BEAM:
+            return "No beam rate"
+        case SpeedState.BAD_RANGE:
+            return "Inner must be less than outer"
+
+
+def speed_advice(status) -> str:
+    """How to fix an invalid speed, as a range-width target ('' when OK).
+
+    Never suggests changing scan pulses: operators fix speed with the range.
+    """
+    match status.state:
+        case SpeedState.OK:
+            return ""
+        case SpeedState.TOO_FAST:
+            return f"Narrow the range to less than {status.max_width:.0f} um"
+        case SpeedState.TOO_SLOW:
+            return f"Widen the range to more than {status.min_width:.0f} um"
+        case SpeedState.NO_BEAM:
+            return "Wait for beam to return"
+        case SpeedState.BAD_RANGE:
+            return "Inner must be less than outer"
+
+
 def in_alarm(status, active: bool) -> bool:
     """True when an active plane's speed is too fast or too slow."""
     return active and status is not None and status.state in ALARM_STATES
@@ -33,7 +66,12 @@ def describe_plane(status, active: bool):
     other active planes show "OK". Inactive or unreadable planes are blank.
     """
     if in_alarm(status, active):
-        return (ALARM_TEXT[status.state], ALARM_STYLE, status.advice, ALARM_FIELD_STYLE)
+        return (
+            ALARM_TEXT[status.state],
+            ALARM_STYLE,
+            speed_advice(status),
+            ALARM_FIELD_STYLE,
+        )
     if active and status is not None and status.valid:
         return ("OK", OK_STYLE, "", "")
     return ("", "", "", "")
@@ -46,10 +84,12 @@ def profile_message(plane: str, status) -> str:
         return f"{name} speed unknown: PVs unavailable"
     if status.valid:
         return f"{name} speed OK"
-    message = f"{name} {status.summary.lower()}"
-    if not status.advice or status.advice.lower() == status.summary.lower():
+    summary = speed_summary(status)
+    advice = speed_advice(status)
+    message = f"{name} {summary.lower()}"
+    if not advice or advice.lower() == summary.lower():
         return message
-    return f"{message}. {status.advice}"
+    return f"{message}. {advice}"
 
 
 def transition_level(previous, current):
