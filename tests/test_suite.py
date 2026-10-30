@@ -212,10 +212,6 @@ class TestWireScanSuite(unittest.TestCase):
                 mock_run_device_scan.call_args.kwargs["method"], "step"
             )
 
-
-if __name__ == "__main__":
-    unittest.main()
-
     def test_wires_and_devices_sorted_by_z_after_reassignment(self):
         z = {"WS27644": 2.0, "WS28144": 3.0, "WS28444": 4.0, "WS28744": 5.0}
 
@@ -242,3 +238,18 @@ if __name__ == "__main__":
                 suite.set_wires(["WS28144"])
                 self.assertEqual(suite.wires, ["WS28144"])
                 self.assertEqual(list(suite.devices), ["WS28144"])
+
+    def test_repr_is_compact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(WireScanSuite, "_build_view", return_value=MagicMock()):
+                suite = WireScanSuite(wires=[], outdir=Path(tmp))
+            suite.results = {"WS28144": [object(), object()], "WS28444": []}
+            self.assertEqual(
+                repr(suite),
+                "WireScanSuite(beampath='CU_HXR', wires=[], detector=None, "
+                "results={'WS28144': 2})",
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

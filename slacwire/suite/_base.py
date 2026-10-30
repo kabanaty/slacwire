@@ -17,7 +17,7 @@ from slacwire._constants import WIRE_AREA_LOOKUP, _SCOPE_DATA_DIR, dated_output_
 logger = logging.getLogger("wire_scan_logger")
 
 
-@dataclass
+@dataclass(repr=False)
 class WireScanSuiteBase:
     """Base dataclass with fields and infrastructure for WireScanSuite."""
 
@@ -46,20 +46,17 @@ class WireScanSuiteBase:
 
     def __repr__(self) -> str:
         """Return a concise representation of suite state for debugging."""
-        instantiated_wires = sorted(self.wires)
         result_counts = {
             wire: len(runs)
             for wire, runs in self.results.items()
             if runs
         }
-        total_results = sum(result_counts.values())
-        has_results = total_results > 0
 
         return (
             f"WireScanSuite(beampath={self.beampath!r}, "
-            f"wire_list={instantiated_wires!r}, "
-            f"has_results={has_results}, "
-            f"result_counts={result_counts!r})"
+            f"wires={self.wires!r}, "
+            f"detector={self.detector!r}, "
+            f"results={result_counts!r})"
         )
 
     def __setattr__(self, name, value):
