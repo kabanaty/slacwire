@@ -62,14 +62,37 @@ class WireScanSuiteBase:
             f"result_counts={result_counts!r})"
         )
 
+    def __setattr__(self, name, value):
+        """Rebuild devices whenever the wire list is reassigned after init."""
+        object.__setattr__(self, name, value)
+        if name == "wires" and "devices" in self.__dict__:
+            self._build_devices()
+
     def set_wires(self, wires: list[str]):
         """Replace the configured wire list and rebuild device instances."""
         self.wires = wires
-        self._build_devices()
 
     def _build_devices(self):
-        """Initialize all wire device instances based on configured wires."""
-        self.devices = {wire: self._make_device(wire) for wire in self.wires}
+        """Build devices for configured wires, ordering wires and devices by z.
+
+        Existing device instances are reused. Both ``wires`` and ``devices``
+        end up sorted by ``sum_l_meters`` so they always iterate identically.
+        """
+        devices = {
+            wire: self.devices[wire] if wire in self.devices else self._make_device(wire)
+            for wire in self.wires
+        }
+        self.devices = self._sort_by_z(devices)
+        object.__setattr__(self, "wires", list(self.devices))
+
+    @staticmethod
+    def _sort_by_z(devices: dict) -> dict:
+        """Return devices ordered by beamline position (unknown positions last)."""
+        def key(item):
+            z = getattr(item[1], "sum_l_meters", None)
+            return z if isinstance(z, (int, float)) else float("inf")
+
+        return dict(sorted(devices.items(), key=key))
 
     def _build_view(self):
         """Create the plotting view instance used by the suite."""
@@ -81,6 +104,7 @@ class WireScanSuiteBase:
         """Get or lazily create a device for a wire name."""
         if wire not in self.devices:
             self.devices[wire] = self._make_device(wire)
+            self.devices = self._sort_by_z(self.devices)
         return self.devices[wire]
 
     def _make_device(self, wire: str):
