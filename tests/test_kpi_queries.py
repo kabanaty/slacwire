@@ -108,6 +108,26 @@ class TestRunRegistryKPIReporter(unittest.TestCase):
             self.assertEqual(scope_rate["runs_with_scope_data"], 1)
             self.assertEqual(scope_rate["scope_data_completion_rate_pct"], 25.0)
 
+    def test_wires_by_week(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sqlite_path = self._build_snapshot(Path(tmp))
+            reporter = RunRegistryKPIReporter.from_sqlite_path(sqlite_path)
+
+            weeks = reporter.wires_by_week(
+                start_ts="2026-04-01T00:00:00",
+                end_ts="2026-05-01T00:00:00",
+            )
+            by_week = {row["year_week"]: row for row in weeks}
+
+            # 4/1 (ok) and 4/5 (error) are both WS28144 in week 13
+            self.assertEqual(by_week["2026-W13"]["distinct_wires_scanned"], 1)
+            self.assertEqual(by_week["2026-W13"]["distinct_wires_ok"], 1)
+            self.assertEqual(by_week["2026-W13"]["wires"], "WS28144")
+
+            # 4/20 is WS27644 with a non-ok status
+            self.assertEqual(by_week["2026-W16"]["distinct_wires_scanned"], 1)
+            self.assertEqual(by_week["2026-W16"]["distinct_wires_ok"], 0)
+
     def test_failure_and_recency_queries(self):
         with tempfile.TemporaryDirectory() as tmp:
             sqlite_path = self._build_snapshot(Path(tmp))
