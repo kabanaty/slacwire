@@ -4,10 +4,50 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from slacwire.registry.registry_sqlite import convert_run_registry_json_to_sqlite
+from slacwire.registry.registry_sqlite import (
+    build_wire_name_map,
+    convert_run_registry_json_to_sqlite,
+)
 
 
 class TestRegistrySQLiteConversion(unittest.TestCase):
+    def test_epics_wire_names_mapped_to_mad_names(self):
+        base = {
+            "beampath": "CU_HXR",
+            "method": "matlab_step",
+            "plots": [],
+            "status": "ok",
+        }
+        entries = [
+            {**base, "run_id": 1, "timestamp": "20260424_120000", "wire": "WIRE:LI28:144"},
+            {**base, "run_id": 2, "timestamp": "20260424_123000", "wire": "WS28144"},
+            {**base, "run_id": 3, "timestamp": "20260424_130000", "wire": "WIRE:FAKE:999"},
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source_json = tmp_path / "ws_registry_snapshot.json"
+            sqlite_path = tmp_path / "ws_registry_snapshot.sqlite3"
+            source_json.write_text(json.dumps(entries), encoding="utf-8")
+
+            convert_run_registry_json_to_sqlite(
+                source_json, sqlite_path, name_map={"WIRE:LI28:144": "WS28144"}
+            )
+
+            with sqlite3.connect(sqlite_path) as conn:
+                wires = [
+                    row[0]
+                    for row in conn.execute("SELECT wire FROM runs ORDER BY run_id")
+                ]
+            # Unmapped names pass through unchanged
+            self.assertEqual(wires, ["WS28144", "WS28144", "WIRE:FAKE:999"])
+
+    def test_build_wire_name_map_prefers_active_devices(self):
+        name_map = build_wire_name_map()
+        # WIRE:LI28:144 is shared with inactive legacy device WS144
+        self.assertEqual(name_map["WIRE:LI28:144"], "WS28144")
+        self.assertEqual(name_map["WIRE:LTUS:755"], "WS33B")
+
     def test_converts_json_snapshot_into_runs_and_plots_tables(self):
         entries = [
             {
