@@ -305,6 +305,10 @@ class WireScanSuiteGUI(Display):
         self.ui.loadConfigButton.setToolTip(
             "Restore saved measurement settings for this wire/beampath"
         )
+        self.ui.exportMatButton.clicked.connect(self.export_mat_callback)
+        self.ui.exportMatButton.setToolTip(
+            "Export the displayed scan to a MATLAB wirescan_gui .mat file"
+        )
 
         self.ui.ParametersGroupBox.setToolTip(
             "Live EPICS readbacks for the selected wire scanner"
@@ -669,6 +673,26 @@ class WireScanSuiteGUI(Display):
         except Exception as e:
             self.logger.error("Error saving data: %s", str(e))
             return None
+
+    def export_mat_callback(self):
+        wire = self.measurement.wire
+        data = self._latest_result_for_wire(wire)
+        if data is None or not hasattr(data, "to_mat"):
+            self.logger.info("No data for %s to export", wire)
+            return
+
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filepath = self.suite.outdir / f"Export_{wire}_{timestamp}.mat"
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+            data.to_mat(str(filepath))
+        except Exception as e:
+            self.logger.error("Failed to export %s to .mat: %s", wire, e)
+            return
+
+        self.logger.info(
+            "Exported %s to .mat: %s in %s", wire, filepath.name, filepath.parent
+        )
 
     def load_callback(self):
         file_path, _ = QFileDialog.getOpenFileName(
