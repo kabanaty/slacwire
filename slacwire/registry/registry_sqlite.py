@@ -48,6 +48,22 @@ def _serialize(value) -> str | None:
     return value
 
 
+def build_wire_name_map() -> dict[str, str]:
+    """Return an EPICS control name -> MAD device name map for active wires.
+
+    MATLAB runs logged via ``slacwire-log-run`` report EPICS names
+    (``WIRE:LI28:144``) while the Python GUI reports MAD names (``WS28144``).
+    Only active devices are used because some EPICS names are shared with
+    inactive legacy entries (e.g. ``WIRE:LI28:144`` -> ``WS144``).
+    """
+    from slac_db.device import get_attribute, get_devices
+
+    return {
+        get_attribute(name, "cs_name"): name
+        for name in get_devices(device_type="WIRE")
+    }
+
+
 def _normalize_status(status: str | None) -> str:
     """Map status values to expected reporting categories."""
     if status in {"ok", "error", "unknown"}:
@@ -108,6 +124,7 @@ def convert_run_registry_json_to_sqlite(
     sqlite_path: str | Path,
     *,
     overwrite: bool = False,
+    name_map: dict[str, str] | None = None,
 ) -> RegistrySQLiteSummary:
     """Convert a RunRegistry JSON snapshot into a SQLite reporting database.
 
@@ -115,6 +132,8 @@ def convert_run_registry_json_to_sqlite(
         source_json: Path to the JSON snapshot produced by ``RunRegistry``.
         sqlite_path: Path to the SQLite database to create.
         overwrite: If ``True``, replace an existing database at ``sqlite_path``.
+        name_map: EPICS -> MAD wire name map applied to the ``wire`` column.
+            Defaults to ``build_wire_name_map()``. Unmapped names pass through.
 
     Returns:
         ``RegistrySQLiteSummary`` with record counts and output paths.
@@ -135,6 +154,8 @@ def convert_run_registry_json_to_sqlite(
 
     sqlite_output_path.parent.mkdir(parents=True, exist_ok=True)
     entries = _load_entries(source_json_path)
+    if name_map is None:
+        name_map = build_wire_name_map()
     ingested_at = datetime.now().isoformat(timespec="seconds")
 
     runs_inserted = 0
@@ -149,7 +170,7 @@ def convert_run_registry_json_to_sqlite(
             timestamp_raw = entry["timestamp"]
             timestamp_iso = _to_timestamp_iso(timestamp_raw)
             method = entry["method"]
-            wire = entry["wire"]
+            wire = name_map.get(entry["wire"], entry["wire"])
             beampath = entry["beampath"]
             detector = _serialize(entry.get("detector"))
             filepath = _serialize(entry.get("filepath"))

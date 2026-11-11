@@ -130,6 +130,9 @@ Formula:
 Why it matters:
 - Indicates system coverage breadth.
 
+Weekly variant (`wires_by_week`):
+- `distinct_wires_scanned` and `distinct_wires_ok` (wires with at least one `ok` run) per `%Y-W%W` week (Monday-start, same bucketing as the other weekly queries), plus a sorted `wires` list.
+
 ### 7) Wire Coverage Recency
 
 Plain-language definition:

@@ -10,7 +10,7 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from qtpy.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 
 from slac_devices.reader import create_wire
-from slacwire._constants import VALID_BEAMPATHS, _BASE_DIR
+from slacwire._constants import VALID_BEAMPATHS, _BASE_DIR, gui_scan_mode
 from slacwire.widgets.error_dialog import ErrorDialog
 from slacwire.widgets.measurement import MeasurementWidget, extract_measurement_data
 from slacwire.widgets.navigation import NavigationWidget
@@ -32,6 +32,7 @@ class WireScanSuiteThread(QThread):
         detector: str,
         jitter_correction: bool = False,
         charge_normalization: bool = False,
+        scan_mode: str = "otf",
     ):
         super().__init__()
         self.suite = suite
@@ -40,6 +41,7 @@ class WireScanSuiteThread(QThread):
         self.detector = detector
         self.jitter_correction = jitter_correction
         self.charge_normalization = charge_normalization
+        self.scan_mode = scan_mode
 
     def run(self):
         try:
@@ -56,7 +58,7 @@ class WireScanSuiteThread(QThread):
             # - Data saving and logging
             self.suite.run_single(
                 wire=wire_name,
-                scan_mode="otf",
+                scan_mode=self.scan_mode,
                 jitter_correction=self.jitter_correction,
                 charge_normalization=self.charge_normalization,
             )
@@ -281,7 +283,8 @@ class WireScanSuiteGUI(Display):
 
         self.ui.startButton.clicked.connect(self.start_scan_callback)
         self.ui.startButton.setToolTip(
-            "Begin an on-the-fly wire scan for the selected device"
+            "Begin a wire scan for the selected device "
+            "(on-the-fly by default; step for wires without OTF support)"
         )
         self.ui.saveDataButton.clicked.connect(self.save_callback)
         self.ui.saveDataButton.setToolTip("Export scan results to an HDF5 file")
@@ -304,6 +307,10 @@ class WireScanSuiteGUI(Display):
         self.ui.loadConfigButton.clicked.connect(self.load_config_callback)
         self.ui.loadConfigButton.setToolTip(
             "Restore saved measurement settings for this wire/beampath"
+        )
+        self.ui.exportMatButton.clicked.connect(self.export_mat_callback)
+        self.ui.exportMatButton.setToolTip(
+            "Export the displayed scan to a MATLAB wirescan_gui .mat file"
         )
 
         self.ui.ParametersGroupBox.setToolTip(
@@ -443,6 +450,13 @@ class WireScanSuiteGUI(Display):
         self.suite.show = False       # GUI renders plots after thread completes
         self.suite.save_plots = False  # GUI renders plots after thread completes
 
+        scan_mode = gui_scan_mode(wire_identifier)
+        self.logger.info(
+            "Starting %s scan for %s",
+            "on-the-fly" if scan_mode == "otf" else "step",
+            wire_identifier.split(":")[0],
+        )
+
         self.thread = WireScanSuiteThread(
             suite=self.suite,
             wire_identifier=wire_identifier,
@@ -450,6 +464,7 @@ class WireScanSuiteGUI(Display):
             detector=self.measurement.detector or self.suite.detector,
             jitter_correction=self.measurement.jitter_enabled,
             charge_normalization=self.measurement.charge_normalized,
+            scan_mode=scan_mode,
         )
         self.thread.scan_complete.connect(self.on_scan_complete)
         self.thread.scan_failed.connect(self.on_scan_failure)
@@ -669,6 +684,26 @@ class WireScanSuiteGUI(Display):
         except Exception as e:
             self.logger.error("Error saving data: %s", str(e))
             return None
+
+    def export_mat_callback(self):
+        wire = self.measurement.wire
+        data = self._latest_result_for_wire(wire)
+        if data is None or not hasattr(data, "to_mat"):
+            self.logger.info("No data for %s to export", wire)
+            return
+
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filepath = self.suite.outdir / f"Export_{wire}_{timestamp}.mat"
+            filepath.parent.mkdir(parents=True, exist_ok=True)
+            data.to_mat(str(filepath))
+        except Exception as e:
+            self.logger.error("Failed to export %s to .mat: %s", wire, e)
+            return
+
+        self.logger.info(
+            "Exported %s to .mat: %s in %s", wire, filepath.name, filepath.parent
+        )
 
     def load_callback(self):
         file_path, _ = QFileDialog.getOpenFileName(

@@ -11,11 +11,14 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QStandardItem
 
 from slacwire._constants import VALID_FIT_METHODS
+from slacwire.plot_navigation import pan_limits, zoom_limits
 import matplotlib
 
 matplotlib.use("Qt5Agg")
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+
+NAVIGATION_HINT = "Scroll to pan X, Ctrl+scroll to zoom X, double-click to reset"
 
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -23,6 +26,33 @@ class MplCanvas(FigureCanvasQTAgg):
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = fig.add_subplot(1, 1, 1)
         super(MplCanvas, self).__init__(fig)
+        self.mpl_connect("button_press_event", self._on_button_press)
+
+    def wheelEvent(self, event):
+        angle = event.angleDelta()
+        # Horizontal trackpad swipes pan too; use whichever direction dominates
+        delta = angle.x() if abs(angle.x()) > abs(angle.y()) else angle.y()
+        ax = self.inaxes(self.mouseEventCoords(event))
+        if not delta or ax is None or not ax.axison:
+            event.ignore()
+            return
+
+        if event.modifiers() & Qt.ControlModifier:
+            center = ax.transData.inverted().transform(
+                self.mouseEventCoords(event)
+            )[0]
+            ax.set_xlim(zoom_limits(ax.get_xlim(), center, delta))
+        else:
+            ax.set_xlim(pan_limits(ax.get_xlim(), delta))
+        self.draw_idle()
+        event.accept()
+
+    def _on_button_press(self, event):
+        if not event.dblclick:
+            return
+        for ax in self.figure.axes:
+            ax.autoscale(enable=True, axis="x")
+        self.draw_idle()
 
 
 class ProfileControl(QGroupBox):
@@ -122,11 +152,12 @@ class PlotWidget(QWidget):
 
         self.trajectory_plot = MplCanvas()
         self.trajectory_plot.setToolTip(
-            "Motor position and detector signal vs. time during scan"
+            "Motor position and detector signal vs. time during scan\n"
+            + NAVIGATION_HINT
         )
         self.profile_plot = MplCanvas()
         self.profile_plot.setToolTip(
-            "Fitted beam profile for the selected wire plane"
+            "Fitted beam profile for the selected wire plane\n" + NAVIGATION_HINT
         )
         self.profile_control = ProfileControl()
         self.profile_control.setToolTip(

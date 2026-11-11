@@ -95,7 +95,7 @@ class WireScanView:
         secax.set_xlabel("Wire Position (beam, µm)")
 
         ax.set_title(title)
-        ax.legend(loc="upper right")
+        ax.legend(loc="best")
         ax.grid(True, which="both", linestyle="--", alpha=0.6)
 
         params_text = (
@@ -222,7 +222,7 @@ class WireScanView:
         ax.set_xlabel("Wire Position (µm)")
         ax.set_ylabel(f"{detector} ({units})")
         ax.set_title(title)
-        ax.legend(loc="upper right", fontsize=8)
+        ax.legend(loc="best", fontsize=8)
 
         params_text = (
             f"σ={fit.sigma:.1f}±{fit.sigma_err:.1f}\n"
@@ -512,7 +512,7 @@ class WireScanView:
 
         lines1, labels1 = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
-        ax2.legend(lines1 + lines2, labels1 + labels2, loc="upper right", fontsize=8)
+        ax2.legend(lines1 + lines2, labels1 + labels2, loc="best", fontsize=8)
 
         ax1.set_title(f"{wire} — All Detectors")
         fig.tight_layout()
@@ -616,7 +616,7 @@ class WireScanView:
         ax_left.set_ylabel(f"{detector} ({units})")
         ax_left.set_title("Uncorrected")
         ax_left.grid(True, which="both", linestyle="--", alpha=0.6)
-        ax_left.legend(loc="upper right")
+        ax_left.legend(loc="best")
 
         # --- Corrected (right) ---
         sort_idx = np.argsort(x_corrected)
@@ -643,7 +643,7 @@ class WireScanView:
         ax_right.set_xlabel("Beam Position (µm)")
         ax_right.set_title("Jitter-corrected")
         ax_right.grid(True, which="both", linestyle="--", alpha=0.6)
-        ax_right.legend(loc="upper right")
+        ax_right.legend(loc="best")
 
         rms_str = ""
         if jitter_rms is not None:

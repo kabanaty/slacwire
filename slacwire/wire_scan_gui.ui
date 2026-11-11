@@ -425,6 +425,13 @@ QTextEdit::viewport {
         </property>
        </widget>
       </item>
+      <item row="0" column="2">
+       <widget class="QPushButton" name="exportMatButton">
+        <property name="text">
+         <string>Export to .mat</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
