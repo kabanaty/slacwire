@@ -37,6 +37,7 @@ WIRE_AREA_LOOKUP = {
     "WSBP2": "BYP",
     "WSBP3": "BYP",
     "WSBP4": "BYP",
+    "WSBP5": "BYP",
     "WSSP1D": "SPD",
     "WS31": "LTUH",
     "WS32": "LTUH",
@@ -47,6 +48,19 @@ WIRE_AREA_LOOKUP = {
     "WS33B": "LTUS",
     "WS34B": "LTUS",
 }
+
+# Per-wire default scan mode used by the GUI. Wires not listed use "otf".
+# WS02: OTF unsupported due to lagging hardware — use step scans.
+GUI_SCAN_MODE_OVERRIDES = {
+    "WS02": "step",
+}
+GUI_DEFAULT_SCAN_MODE = "otf"
+
+
+def gui_scan_mode(wire: str) -> str:
+    """Return the GUI's default scan mode ("otf" or "step") for a wire."""
+    return GUI_SCAN_MODE_OVERRIDES.get(wire.split(":")[0], GUI_DEFAULT_SCAN_MODE)
+
 
 _BASE_DIR = Path("/u1/lcls/physics/data/wire_scan")
 _SCOPE_DATA_DIR = Path("/u1/lcls/physics/genMotion/wirescanners/scope_data")
