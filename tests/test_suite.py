@@ -8,10 +8,10 @@ import types
 from unittest.mock import MagicMock, patch
 
 # Provide lightweight stubs so this test can run without full accelerator stack.
-fake_slac_devices = types.ModuleType("slac_devices")
+# slac_devices itself is real (the suite needs slac_devices.wire.SpeedState);
+# only the reader, which pulls in slac_db, is stubbed.
 fake_slac_devices_reader = types.ModuleType("slac_devices.reader")
 fake_slac_devices_reader.create_wire = MagicMock()
-fake_slac_devices.reader = fake_slac_devices_reader
 
 fake_slac_measurements = types.ModuleType("slac_measurements")
 fake_slac_measurements_wires = types.ModuleType("slac_measurements.wires")
@@ -34,7 +34,6 @@ fake_slac_measurements.wires = fake_slac_measurements_wires
 fake_slac_measurements_wires.analysis = fake_slac_measurements_analysis
 fake_slac_measurements_analysis.results = fake_slac_measurements_results
 
-sys.modules.setdefault("slac_devices", fake_slac_devices)
 sys.modules.setdefault("slac_devices.reader", fake_slac_devices_reader)
 sys.modules.setdefault("slac_measurements", fake_slac_measurements)
 sys.modules.setdefault("slac_measurements.wires", fake_slac_measurements_wires)
