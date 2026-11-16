@@ -51,7 +51,7 @@ slacwire/
 
 ## Installation
 
-Python 3.10+ is required.
+Python 3.11+ is required.
 
 Install in editable mode for development:
 
