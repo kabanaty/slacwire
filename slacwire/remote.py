@@ -21,6 +21,10 @@ Responses (stdout, one per line):
     SELECTED:<wire>            Wire changed.
     ERROR:<message>            Command failed.
     BUSY                       Scan in progress; command rejected.
+
+SCAN, GET and unknown commands always end with READY (or BUSY), including
+after an ERROR line, so a client can wait for READY without hanging.
+Closing stdin without QUIT is treated as QUIT.
 """
 
 import sys
@@ -41,6 +45,9 @@ class StdinCommandReader(QThread):
                     continue
                 self.commandReceived.emit(text)
                 if text.upper() == "QUIT":
-                    break
+                    return
         except (EOFError, ValueError):
             pass
+        # stdin closed without QUIT: the controlling process is gone, so
+        # close the GUI rather than leave an orphaned window.
+        self.commandReceived.emit("QUIT")
