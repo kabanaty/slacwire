@@ -573,10 +573,13 @@ class WireScanSuiteGUI(Display):
                 return
             if len(parts) < 2:
                 print("ERROR:SCAN requires a wire name", flush=True)
+                print("READY", flush=True)
                 return
             wire = parts[1]
             detector = parts[2] if len(parts) > 2 else None
             if not self._navigate_and_select(wire, detector):
+                # _navigate_and_select already printed the ERROR line.
+                print("READY", flush=True)
                 return
             print(f"SCANNING:{wire}", flush=True)
             self.start_scan_callback()
@@ -596,6 +599,7 @@ class WireScanSuiteGUI(Display):
                 return
             if len(parts) < 2:
                 print("ERROR:GET requires a wire name", flush=True)
+                print("READY", flush=True)
                 return
             wire = parts[1]
             data = self._latest_result_for_wire(wire)
@@ -621,6 +625,7 @@ class WireScanSuiteGUI(Display):
 
         else:
             print(f"ERROR:Unknown command '{cmd}'", flush=True)
+            print("READY", flush=True)
 
     def _navigate_and_select(self, wire: str, detector: str = None) -> bool:
         beampath, area = self._resolve_wire_location(wire)
