@@ -61,6 +61,7 @@ def run_kpi_bundle(
         "executive_kpi_snapshot": reporter.executive_kpi_snapshot(start_ts, end_ts),
         "throughput_by_week": reporter.throughput_by_week(start_ts, end_ts),
         "success_failure_by_week": reporter.success_failure_by_week(start_ts, end_ts),
+        "wires_by_week": reporter.wires_by_week(start_ts, end_ts),
         "runs_by_method": reporter.runs_by_method(start_ts, end_ts),
         "failures_by_wire": reporter.failures_by_wire(start_ts, end_ts),
         "failures_by_beampath": reporter.failures_by_beampath(start_ts, end_ts),

@@ -112,6 +112,28 @@ class RunRegistryKPIReporter:
             end_ts=end_ts,
         )
 
+    def wires_by_week(self, start_ts: str, end_ts: str) -> list[dict[str, Any]]:
+        """Return distinct wires scanned per week, with a sorted wire list."""
+        rows = self._fetch_all(
+            """
+            SELECT
+              strftime('%Y-W%W', timestamp_iso) AS year_week,
+              COUNT(DISTINCT wire) AS distinct_wires_scanned,
+              COUNT(DISTINCT CASE WHEN status = 'ok' THEN wire END) AS distinct_wires_ok,
+              GROUP_CONCAT(DISTINCT wire) AS wires
+            FROM runs
+            WHERE timestamp_iso >= :start_ts
+              AND timestamp_iso < :end_ts
+            GROUP BY year_week
+            ORDER BY year_week
+            """,
+            start_ts=start_ts,
+            end_ts=end_ts,
+        )
+        for row in rows:
+            row["wires"] = ", ".join(sorted((row["wires"] or "").split(",")))
+        return rows
+
     def runs_by_method(self, start_ts: str, end_ts: str) -> list[dict[str, Any]]:
         """Return run counts grouped by method for a period."""
         return self._fetch_all(

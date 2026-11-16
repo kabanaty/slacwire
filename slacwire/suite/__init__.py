@@ -41,7 +41,7 @@ from ._results import ResultsMixin
 from ._run import RunMixin
 
 
-@dataclass
+@dataclass(repr=False)
 class WireScanSuite(LogbookMixin, JitterCompareMixin, CompareMixin, DiagnosticsMixin, MotionTestMixin, CollectMixin, RunMixin, PreflightMixin, LoaderMixin, BeamsizesMixin, ResultsMixin, WireScanSuiteBase):
     """High-level orchestration layer for wire scanner beam profile measurements.
 

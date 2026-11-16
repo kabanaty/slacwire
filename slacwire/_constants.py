@@ -37,6 +37,7 @@ WIRE_AREA_LOOKUP = {
     "WSBP2": "BYP",
     "WSBP3": "BYP",
     "WSBP4": "BYP",
+    "WSBP5": "BYP",
     "WSSP1D": "SPD",
     "WS31": "LTUH",
     "WS32": "LTUH",
@@ -47,6 +48,36 @@ WIRE_AREA_LOOKUP = {
     "WS33B": "LTUS",
     "WS34B": "LTUS",
 }
+
+VALID_SCAN_MODES = ("otf", "step")
+
+# Per-wire default scan mode, applied by the suite, CLI, and GUI whenever no
+# scan mode is explicitly requested. Wires not listed use DEFAULT_SCAN_MODE.
+# WS02: OTF unsupported due to lagging hardware — use step scans.
+SCAN_MODE_OVERRIDES = {
+    "WS02": "step",
+}
+DEFAULT_SCAN_MODE = "otf"
+
+
+def default_scan_mode(wire: str) -> str:
+    """Return the default scan mode ("otf" or "step") for a wire."""
+    return SCAN_MODE_OVERRIDES.get(wire.split(":")[0], DEFAULT_SCAN_MODE)
+
+
+def resolve_scan_mode(wire: str, scan_mode: str | None = None) -> str:
+    """Resolve the scan mode for a wire.
+
+    ``None`` selects the per-wire default from ``SCAN_MODE_OVERRIDES``.
+    An explicit mode is honored (case-insensitive) and validated.
+    """
+    if scan_mode is None:
+        return default_scan_mode(wire)
+    mode = scan_mode.lower()
+    if mode not in VALID_SCAN_MODES:
+        raise ValueError(f"Invalid scan_mode '{scan_mode}'. Use 'otf' or 'step'.")
+    return mode
+
 
 _BASE_DIR = Path("/u1/lcls/physics/data/wire_scan")
 _SCOPE_DATA_DIR = Path("/u1/lcls/physics/genMotion/wirescanners/scope_data")
