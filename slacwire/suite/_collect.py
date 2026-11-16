@@ -25,6 +25,8 @@ class CollectMixin:
         wire_name, _ = self._resolve_wire_and_area(wire)
         mode = resolve_scan_mode(wire_name, scan_mode)
         device = self._get_device(wire_name)
+        if mode == "otf":
+            self._check_scan_speed(device)
 
         self._run_device_scan(
             device=device,

@@ -8,10 +8,10 @@ import types
 from unittest.mock import MagicMock, patch
 
 # Provide lightweight stubs so this test can run without full accelerator stack.
-fake_slac_devices = types.ModuleType("slac_devices")
+# slac_devices itself is real (the suite needs slac_devices.wire.SpeedState);
+# only the reader, which pulls in slac_db, is stubbed.
 fake_slac_devices_reader = types.ModuleType("slac_devices.reader")
 fake_slac_devices_reader.create_wire = MagicMock()
-fake_slac_devices.reader = fake_slac_devices_reader
 
 fake_slac_measurements = types.ModuleType("slac_measurements")
 fake_slac_measurements_wires = types.ModuleType("slac_measurements.wires")
@@ -34,7 +34,6 @@ fake_slac_measurements.wires = fake_slac_measurements_wires
 fake_slac_measurements_wires.analysis = fake_slac_measurements_analysis
 fake_slac_measurements_analysis.results = fake_slac_measurements_results
 
-sys.modules.setdefault("slac_devices", fake_slac_devices)
 sys.modules.setdefault("slac_devices.reader", fake_slac_devices_reader)
 sys.modules.setdefault("slac_measurements", fake_slac_measurements)
 sys.modules.setdefault("slac_measurements.wires", fake_slac_measurements_wires)
@@ -65,6 +64,20 @@ class _FakeDevice:
 
     def active_profiles(self):
         return self._active_profiles
+
+    def invalid_profiles(self):
+        return []
+
+
+def _invalid_status(profile="x"):
+    from slac_devices.wire import SpeedState
+
+    return SimpleNamespace(
+        profile=profile,
+        state=SpeedState.TOO_FAST,
+        valid=False,
+        max_width=800.0,
+    )
 
 
 class TestWireScanSuite(unittest.TestCase):
@@ -211,6 +224,37 @@ class TestWireScanSuite(unittest.TestCase):
             self.assertEqual(
                 mock_run_device_scan.call_args.kwargs["method"], "step"
             )
+
+    @patch.object(WireScanSuite, "_make_device")
+    @patch.object(WireScanSuite, "_run_device_scan")
+    def test_run_single_refuses_invalid_speed(
+        self, mock_run_device_scan, mock_make_device
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(WireScanSuite, "_build_view", return_value=MagicMock()):
+                suite = WireScanSuite(
+                    wires=[],
+                    outdir=Path(tmp),
+                    plotdir=Path(tmp) / "plots",
+                )
+
+            device = _FakeDevice()
+            device.invalid_profiles = lambda: [_invalid_status("x")]
+            mock_make_device.return_value = device
+
+            with self.assertRaises(ValueError) as ctx:
+                suite.run_single("WS28144")
+            self.assertIn(
+                "WS28144 X Profile too fast: range too large. "
+                "Narrow the range to less than 800 um",
+                str(ctx.exception),
+            )
+            self.assertIn("Narrow the range", str(ctx.exception))
+            mock_run_device_scan.assert_not_called()
+
+            # Step scans set their own speed, so the OTF speed check is skipped.
+            suite.run_single("WS28144", scan_mode="step")
+            mock_run_device_scan.assert_called_once()
 
     @patch.object(WireScanSuite, "_make_device")
     @patch.object(WireScanSuite, "_run_device_scan")

@@ -15,8 +15,14 @@ from slacwire.widgets.error_dialog import ErrorDialog
 from slacwire.widgets.measurement import MeasurementWidget, extract_measurement_data
 from slacwire.widgets.navigation import NavigationWidget
 from slacwire.widgets.plots import PlotWidget
+from slacwire.widgets.speed_status import (
+    PLANES,
+    SpeedStatusMonitor,
+    build_speed_labels,
+)
 from slacwire.widgets.text_logger import attach_logger_to_widget
 from slacwire.suite import WireScanSuite
+from slacwire.suite._preflight import format_invalid_planes
 
 
 class WireScanSuiteThread(QThread):
@@ -329,10 +335,31 @@ class WireScanSuiteGUI(Display):
         self.logger.setLevel(logging.INFO)
         attach_logger_to_widget(self.logger, self.ui.statusUpdate)
 
+        speed_header, speed_labels = build_speed_labels(self.ui.gridLayout)
+        self.speed_monitor = SpeedStatusMonitor(
+            header=speed_header,
+            labels=speed_labels,
+            range_fields={
+                plane: [
+                    getattr(self.ui, f"{plane}_wire_inner"),
+                    getattr(self.ui, f"{plane}_wire_outer"),
+                ]
+                for plane in PLANES
+            },
+            logger=self.logger,
+            parent=self,
+        )
+        self.speed_monitor.set_wire(self.measurement.active_wire)
+
         self.plotLayout = QVBoxLayout()
         self.ui.plotFrame.setLayout(self.plotLayout)
         self.plotLayout.addWidget(self.ui.logBookButton)
         self.plotLayout.addWidget(self.plots)
+
+    def closeEvent(self, event):
+        if hasattr(self, "speed_monitor"):
+            self.speed_monitor.stop()
+        super().closeEvent(event)
 
     def _build_logger(self, log_dest: Path):
         import slac_measurements.logger.file_logger
@@ -438,7 +465,26 @@ class WireScanSuiteGUI(Display):
             if pv_obj is not None:
                 child.channel = pv_obj.pvname
 
+        if hasattr(self, "speed_monitor"):
+            self.speed_monitor.set_wire(self.measurement.active_wire)
+
+    def _speed_problems(self) -> str:
+        """Return a description of active planes with invalid speed, or ''."""
+        wire = self.measurement.active_wire
+        if wire is None:
+            return ""
+        try:
+            invalid = wire.invalid_profiles()
+        except Exception as exc:
+            return f"Could not check wire speed: {exc}"
+        return format_invalid_planes(wire.name, invalid) if invalid else ""
+
     def start_scan_callback(self):
+        problems = self._speed_problems()
+        if problems:
+            self.logger.error("Scan not started, invalid wire speed:\n%s", problems)
+            return
+
         wire_identifier = self._selected_wire_identifier()
         self.ui.startButton.setEnabled(False)
         self.ui.abortButton.setEnabled(True)
@@ -469,6 +515,8 @@ class WireScanSuiteGUI(Display):
         self.thread.scan_complete.connect(self.on_scan_complete)
         self.thread.scan_failed.connect(self.on_scan_failure)
         self.thread.scan_aborted.connect(self.on_scan_aborted)
+        self.thread.finished.connect(self.speed_monitor.resume)
+        self.speed_monitor.pause()
         self.thread.start()
 
     def abort_scan_callback(self):
@@ -579,6 +627,12 @@ class WireScanSuiteGUI(Display):
             detector = parts[2] if len(parts) > 2 else None
             if not self._navigate_and_select(wire, detector):
                 # _navigate_and_select already printed the ERROR line.
+                print("READY", flush=True)
+                return
+            problems = self._speed_problems()
+            if problems:
+                self.logger.error("Scan not started, invalid wire speed:\n%s", problems)
+                print(f"ERROR:{problems.replace(chr(10), ' ')}", flush=True)
                 print("READY", flush=True)
                 return
             print(f"SCANNING:{wire}", flush=True)

@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
 
     steps:
       - name: Checkout
@@ -26,7 +26,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install --no-deps .
-          python -m pip install matplotlib numpy sqlalchemy pyyaml pytest
+          python -m pip install matplotlib numpy sqlalchemy pyyaml pytest pydantic pyepics h5py pykern
+          # slac_devices.wire (speed-check types) without the full accelerator stack
+          # (no slicops / slac-measurements); slac-tools imports slac_db -> pykern.
+          python -m pip install --no-deps \
+            "slac-db @ git+https://github.com/slaclab/slac-db.git@main" \
+            "slac-tools @ git+https://github.com/slaclab/slac-tools.git@main" \
+            "slac-timing @ git+https://github.com/slaclab/slac-timing.git@master" \
+            "slac-devices @ git+https://github.com/slaclab/slac-devices.git@main"
 
       - name: Run unit tests
         run: |
