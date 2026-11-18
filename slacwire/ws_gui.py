@@ -319,6 +319,10 @@ class WireScanSuiteGUI(Display):
             "Export the displayed scan to a MATLAB wirescan_gui .mat file"
         )
 
+        self.ui.helpButton.clicked.connect(self.help_callback)
+        self.ui.helpButton.setToolTip("Open the guide to making a wire scan")
+        self.ui.helpButton.setEnabled(self._help_path().exists())
+
         self.ui.ParametersGroupBox.setToolTip(
             "Live EPICS readbacks for the selected wire scanner"
         )
@@ -355,6 +359,20 @@ class WireScanSuiteGUI(Display):
         self.ui.plotFrame.setLayout(self.plotLayout)
         self.plotLayout.addWidget(self.ui.logBookButton)
         self.plotLayout.addWidget(self.plots)
+
+    def _help_path(self) -> Path:
+        return self.base_path / "ws_gui.html"
+
+    def help_callback(self):
+        # PyDM loads ws_gui.html into self.help_window when launched with
+        # `pydm ws_gui.py`; load it ourselves if the display was opened another way.
+        if self.help_window is None:
+            self.load_help_file(str(self._help_path()))
+        if self.help_window.width() < 800:  # PyDM opens it at 500x400
+            self.help_window.resize(800, 900)
+        self.help_window.show()
+        self.help_window.raise_()
+        self.help_window.activateWindow()
 
     def closeEvent(self, event):
         if hasattr(self, "speed_monitor"):
