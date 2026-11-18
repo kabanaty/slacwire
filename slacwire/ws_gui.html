@@ -133,10 +133,10 @@ th { background-color: #e0e0e0; }
 <tbody>
 <tr>
 <td><strong>PMT</strong> (photomultiplier tube)</td>
-<td>Light from the wire as it crosses the beam. The most common choice.</td>
+<td>Particles scattered by the wire</td>
 </tr>
 <tr>
-<td><strong>LBLM</strong> (beam loss monitor)</td>
+<td><strong>LBLM</strong> (long beam loss monitor)</td>
 <td>Particles scattered by the wire</td>
 </tr>
 <tr>
@@ -172,13 +172,13 @@ th { background-color: #e0e0e0; }
 </tr>
 <tr>
 <td><strong>Scan Pulses</strong></td>
-<td>Number of beam pulses across each plane. 350 is the usual value.</td>
+<td>Number of beam pulses across each plane. 350 is the usual value for 120 Hz beam rate.</td>
 </tr>
 </tbody>
 </table>
 <h3><a name="choosing-the-range"></a>Choosing the range</h3>
 <p>The range must cover the <strong>whole beam profile</strong>. The signal should start at baseline, rise through the peak, and return to baseline inside the range. If the profile is cut off at either end, the fitted beam size is not reliable.</p>
-<p>If you don't know where the beam is, start from the existing range. After the first scan, check the trajectory and profile plots and adjust the range.</p>
+<p>If you don't know where the beam is, start from the existing range. After the first scan, check the trajectory and profile plots and adjust the range.  A range of 4,000 microns is recommended.  It is wide enough to include the baseline and the whole profile, while keeping good spatial resolution and a safe wire speed.</p>
 <h3><a name="the-speed-check"></a>The speed check</h3>
 <p>The wire moves at a speed set by the wire scanner IOC:</p>
 <pre><code>speed = beam rate × (Outer − Inner) / Scan Pulses</code></pre>
