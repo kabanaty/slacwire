@@ -121,6 +121,24 @@ font-weight: bold;}</string>
        </spacer>
       </item>
       <item>
+       <widget class="QPushButton" name="helpButton">
+        <property name="styleSheet">
+         <string notr="true">QPushButton#helpButton {
+    background-color: white;
+    color: rgb(55, 55, 55);
+    font-weight: bold;
+    border: 1px solid #999999;
+    border-radius: 4px;
+    padding: 4px 12px;
+}
+QPushButton#helpButton:hover { background-color: rgb(240, 240, 240); }</string>
+        </property>
+        <property name="text">
+         <string>? Help</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QFrame" name="frame_2">
         <property name="styleSheet">
          <string notr="true">border: none;</string>

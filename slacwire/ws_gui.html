@@ -21,8 +21,7 @@ th { background-color: #e0e0e0; }
 <p>You need:</p>
 <ul>
 <li><strong>Beam</strong> at the wire, on the beampath you plan to scan. The scan uses beam pulses to measure the profile, so it cannot run without beam.</li>
-<li><strong>The beam rate you expect.</strong> The wire speed comes from the beam rate. If the rate changes during setup, the speed check changes with it.</li>
-<li><strong>For CU wires in LTUH or LTUS:</strong> the BYKIK (HXR) or BYKIKS (SXR) rate. The scan records only the shots that pass the kicker. If the kicker rate is 0 Hz, no beam reaches the LTU and the scan will not start.</li>
+<li><strong>A steady beam rate.</strong> 120 Hz is ideal for scan time and data resolution, but valid scans can be made at rates down to 10 Hz.</li>
 </ul>
 <hr />
 <h2><a name="quick-version"></a>Quick Version</h2>
@@ -134,10 +133,10 @@ th { background-color: #e0e0e0; }
 <tbody>
 <tr>
 <td><strong>PMT</strong> (photomultiplier tube)</td>
-<td>Light from the wire as it crosses the beam. The most common choice.</td>
+<td>Particles scattered by the wire</td>
 </tr>
 <tr>
-<td><strong>LBLM</strong> (beam loss monitor)</td>
+<td><strong>LBLM</strong> (long beam loss monitor)</td>
 <td>Particles scattered by the wire</td>
 </tr>
 <tr>
@@ -173,13 +172,13 @@ th { background-color: #e0e0e0; }
 </tr>
 <tr>
 <td><strong>Scan Pulses</strong></td>
-<td>Number of beam pulses across each plane. 350 is the usual value.</td>
+<td>Number of beam pulses across each plane. 350 is the usual value for 120 Hz beam rate.</td>
 </tr>
 </tbody>
 </table>
 <h3><a name="choosing-the-range"></a>Choosing the range</h3>
 <p>The range must cover the <strong>whole beam profile</strong>. The signal should start at baseline, rise through the peak, and return to baseline inside the range. If the profile is cut off at either end, the fitted beam size is not reliable.</p>
-<p>If you don't know where the beam is, start from the existing range. After the first scan, check the trajectory and profile plots and adjust the range.</p>
+<p>If you don't know where the beam is, start from the existing range. After the first scan, check the trajectory and profile plots and adjust the range.  A range of 4,000 microns is recommended.  It is wide enough to include the baseline and the whole profile, while keeping good spatial resolution and a safe wire speed.</p>
 <h3><a name="the-speed-check"></a>The speed check</h3>
 <p>The wire moves at a speed set by the wire scanner IOC:</p>
 <pre><code>speed = beam rate × (Outer − Inner) / Scan Pulses</code></pre>
@@ -214,7 +213,7 @@ th { background-color: #e0e0e0; }
 </tr>
 </tbody>
 </table>
-<p>Fix the speed by changing the <strong>range</strong>, not the scan pulses.</p>
+<p>It is generally recommended to adjust the speed by changing the <strong>range</strong>, not the scan pulses.</p>
 <p>A plane can briefly show red while you edit one end of its range. This is normal and clears when both ends are set.</p>
 <p><strong>Start Scan refuses to run while any active plane is Too Fast or Too Slow.</strong> The status log shows the fix for each plane. If the beam rate is 0, every active plane is invalid.</p>
 <hr />

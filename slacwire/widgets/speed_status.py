@@ -14,7 +14,15 @@ disconnected PV, which would freeze the GUI.
 
 import logging
 
-from PyQt5.QtCore import QObject, QThread, QTimer, pyqtSignal, pyqtSlot
+from PyQt5 import sip
+from PyQt5.QtCore import (
+    QCoreApplication,
+    QObject,
+    QThread,
+    QTimer,
+    pyqtSignal,
+    pyqtSlot,
+)
 from qtpy.QtWidgets import QLabel
 
 from slacwire.speed_status import (
@@ -27,6 +35,11 @@ from slacwire.speed_status import (
 )
 
 POLL_INTERVAL_MS = 1000
+STOP_TIMEOUT_MS = 2000
+
+# Worker threads that did not finish in time on stop(); kept alive so they are
+# never destroyed while running.
+_ORPHANED = []
 
 
 class _SpeedPoller(QObject):
@@ -79,17 +92,28 @@ class SpeedStatusMonitor(QObject):
             for plane, widgets in range_fields.items()
         }
 
-        self._thread = QThread(self)
+        # No Qt parent: if the thread were a child of this widget tree, Qt
+        # would destroy it along with the display while it is still running,
+        # which aborts the process ("QThread: Destroyed while thread is still
+        # running"). Its lifetime is managed explicitly by stop().
+        self._thread = QThread()
         self._poller = _SpeedPoller()
         self._poller.moveToThread(self._thread)
         self.pollRequested.connect(self._poller.poll)
         self._poller.statusesReady.connect(self._on_statuses)
         self._thread.start()
+        self._stopped = False
 
         self._timer = QTimer(self)
         self._timer.setInterval(POLL_INTERVAL_MS)
         self._timer.timeout.connect(self.refresh)
         self._timer.start()
+
+        # PyDM does not forward closeEvent to the embedded Display, so stop
+        # the thread when the application is shutting down as well.
+        app = QCoreApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(self.stop)
 
     def set_wire(self, wire) -> None:
         """Switch to a new wire and refresh immediately."""
@@ -106,19 +130,33 @@ class SpeedStatusMonitor(QObject):
         self.refresh()
 
     def refresh(self) -> None:
-        if self.wire is None or self._paused or self._busy:
+        if self.wire is None or self._paused or self._busy or self._stopped:
             return
         self._busy = True
         self.pollRequested.emit(self.wire)
 
     def stop(self) -> None:
+        """Stop polling and shut down the worker thread. Safe to call twice."""
+        if self._stopped:
+            return
+        self._stopped = True
         self._timer.stop()
+        try:
+            self.pollRequested.disconnect(self._poller.poll)
+        except TypeError:
+            pass
         self._thread.quit()
-        self._thread.wait()
+        if not self._thread.wait(STOP_TIMEOUT_MS):
+            # A poll is stuck in PV.get() on a disconnected PV. Hand the
+            # thread and poller to C++ so they are never destroyed while the
+            # thread is running; the OS reclaims them at process exit.
+            sip.transferto(self._thread, None)
+            sip.transferto(self._poller, None)
+            _ORPHANED.append((self._thread, self._poller))
 
     def _on_statuses(self, wire, result) -> None:
         self._busy = False
-        if wire is not self.wire:
+        if self._stopped or wire is not self.wire:
             return
         statuses, active = result
         self._set_column_visible(column_visible(statuses, active))
