@@ -368,6 +368,12 @@ class WireScanSuiteGUI(Display):
         # `pydm ws_gui.py`; load it ourselves if the display was opened another way.
         if self.help_window is None:
             self.load_help_file(str(self._help_path()))
+        # PyDM uses setHtml() with no base URL, so relative <img> paths don't
+        # resolve. Point the browser at the package dir and reload once.
+        browser = self.help_window.display_content
+        if str(self.base_path) not in browser.searchPaths():
+            browser.setSearchPaths([str(self.base_path)])
+            browser.setHtml(self._help_path().read_text())
         if self.help_window.width() < 800:  # PyDM opens it at 500x400
             self.help_window.resize(800, 900)
         self.help_window.show()

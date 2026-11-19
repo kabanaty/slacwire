@@ -43,3 +43,5 @@ Thumbs.db
 # Data & output (project-specific)
 *.h5
 *.png
+# Help-file images (shipped with the package)
+!slacwire/GoodProfile.png
