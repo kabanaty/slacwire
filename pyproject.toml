@@ -41,6 +41,6 @@ include_package_data = true
 include = ["slacwire*"]
 
 [tool.setuptools.package-data]
-slacwire = ["*.ui", "*.yaml", "*.html"]
+slacwire = ["*.ui", "*.yaml", "*.html", "*.png"]
 
 [tool.setuptools_scm]
