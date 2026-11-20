@@ -374,6 +374,9 @@ class WireScanSuiteGUI(Display):
         if str(self.base_path) not in browser.searchPaths():
             browser.setSearchPaths([str(self.base_path)])
             browser.setHtml(self._help_path().read_text())
+        # Open http(s) links (Related Guides) in the system browser instead of
+        # navigating the help window away; in-page #anchors still work.
+        browser.setOpenExternalLinks(True)
         if self.help_window.width() < 800:  # PyDM opens it at 500x400
             self.help_window.resize(800, 900)
         self.help_window.show()
