@@ -138,16 +138,15 @@ class MeasurementWidget(QGroupBox):
         if isinstance(detectors, dict):
             timing = "CU" if self._beampath.startswith("CU") else "SC"
             detectors = detectors.get(timing, [])
-        for detector_string in detectors:
-            detector, area = detector_string.split(":")
-            self.detector_combo.addItem(detector, area)
+        for detector in detectors:
+            self.detector_combo.addItem(detector)
 
         default = getattr(self.my_wire.metadata, "default_detector", "")
         if isinstance(default, dict):
             timing = "CU" if self._beampath.startswith("CU") else "SC"
             default = default.get(timing, "")
-        if default and ":" in default:
-            idx = self.detector_combo.findText(default.split(":")[0])
+        if default:
+            idx = self.detector_combo.findText(default)
             if idx >= 0:
                 self.detector_combo.setCurrentIndex(idx)
 
